@@ -35,7 +35,7 @@ class SpawnManager extends Component with HasGameReference<NavesGame> {
   }
 
   void _spawn() {
-    final w = game.size.x;
+    final w = game.playArea.x;
     final x = 30 + _rng.nextDouble() * (w - 60);
     final roll = _rng.nextDouble();
 

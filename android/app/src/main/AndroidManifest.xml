@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="naves_arcade"
+        android:label="Naves Arcade"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

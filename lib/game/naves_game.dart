@@ -60,13 +60,18 @@ class GameHudState {
 
 class NavesGame extends FlameGame
     with HasCollisionDetection, MultiTouchDragDetector, TapCallbacks {
+  static const double worldWidth = 400;
+  static const double worldHeight = 720;
+
   NavesGame()
       : super(
           camera: CameraComponent.withFixedResolution(
-            width: 400,
-            height: 720,
+            width: worldWidth,
+            height: worldHeight,
           ),
         );
+
+  Vector2 get playArea => Vector2(worldWidth, worldHeight);
 
   final hud = ValueNotifier(const GameHudState());
   final _rng = Random();

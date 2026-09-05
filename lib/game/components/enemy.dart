@@ -69,7 +69,7 @@ class Enemy extends PositionComponent
         position.x += sin(_phase) * 90 * dt;
     }
 
-    if (position.y > game.size.y + 40) {
+    if (position.y > game.playArea.y + 40) {
       removeFromParent();
     }
   }

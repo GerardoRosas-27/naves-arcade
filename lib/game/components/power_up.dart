@@ -68,7 +68,7 @@ class PowerUp extends PositionComponent
     _spin += dt * 4;
     position.y += 60 * dt;
     position.x += sin(_spin) * 20 * dt;
-    if (position.y > game.size.y + 30) {
+    if (position.y > game.playArea.y + 30) {
       removeFromParent();
     }
   }

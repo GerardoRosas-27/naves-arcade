@@ -38,8 +38,8 @@ class Starfield extends Component with HasGameReference<NavesGame> {
   @override
   void update(double dt) {
     super.update(dt);
-    final h = game.size.y;
-    final w = game.size.x;
+    final h = game.playArea.y;
+    final w = game.playArea.x;
     for (final s in _stars) {
       s.y += s.speed * dt;
       if (s.y > h) {
@@ -52,20 +52,20 @@ class Starfield extends Component with HasGameReference<NavesGame> {
   @override
   void render(Canvas canvas) {
     canvas.drawRect(
-      Rect.fromLTWH(0, 0, game.size.x, game.size.y),
+      Rect.fromLTWH(0, 0, game.playArea.x, game.playArea.y),
       Paint()..color = const Color(0xFF050816),
     );
 
     // Subtle nebula
     canvas.drawCircle(
-      Offset(game.size.x * 0.2, game.size.y * 0.3),
+      Offset(game.playArea.x * 0.2, game.playArea.y * 0.3),
       120,
       Paint()
         ..color = const Color(0x22003D6B)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40),
     );
     canvas.drawCircle(
-      Offset(game.size.x * 0.8, game.size.y * 0.6),
+      Offset(game.playArea.x * 0.8, game.playArea.y * 0.6),
       100,
       Paint()
         ..color = const Color(0x221A003D)

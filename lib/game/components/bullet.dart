@@ -30,9 +30,9 @@ class Bullet extends PositionComponent
     super.update(dt);
     position += velocity * dt;
     if (position.y < -20 ||
-        position.y > game.size.y + 20 ||
+        position.y > game.playArea.y + 20 ||
         position.x < -20 ||
-        position.x > game.size.x + 20) {
+        position.x > game.playArea.x + 20) {
       removeFromParent();
     }
   }

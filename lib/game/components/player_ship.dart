@@ -39,12 +39,12 @@ class PlayerShip extends PositionComponent
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    position = Vector2(game.size.x / 2, game.size.y * 0.78);
+    position = Vector2(game.playArea.x / 2, game.playArea.y * 0.78);
     add(CircleHitbox(radius: 14, isSolid: true));
   }
 
   void resetState() {
-    position = Vector2(game.size.x / 2, game.size.y * 0.78);
+    position = Vector2(game.playArea.x / 2, game.playArea.y * 0.78);
     hasShield = false;
     burstMode = false;
     multiShot = false;
@@ -57,7 +57,7 @@ class PlayerShip extends PositionComponent
   }
 
   void respawn() {
-    position = Vector2(game.size.x / 2, game.size.y * 0.82);
+    position = Vector2(game.playArea.x / 2, game.playArea.y * 0.82);
     _invuln = 2.0;
   }
 
@@ -112,8 +112,8 @@ class PlayerShip extends PositionComponent
       }
     }
 
-    position.x = position.x.clamp(20, game.size.x - 20);
-    position.y = position.y.clamp(60, game.size.y - 40);
+    position.x = position.x.clamp(20, game.playArea.x - 20);
+    position.y = position.y.clamp(60, game.playArea.y - 40);
   }
 
   @override
