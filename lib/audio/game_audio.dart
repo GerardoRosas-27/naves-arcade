@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 
 /// Background music playlist + weapon SFX for Naves Arcade.
 ///
+/// BGM and SFX use **isolated** players/pools so weapon sounds never advance
+/// the playlist and track changes never duck/mix into SFX channels.
 /// BGM starts after a user gesture (¡JUGAR!) so web autoplay policies allow it.
-/// Tracks advance on completion and wrap to the first after the last.
-/// Exposes [trackIndex] + [positionSeconds] for [MusicDirector] sync.
 class GameAudio {
   GameAudio._();
 
@@ -24,17 +24,27 @@ class GameAudio {
   static const String shootBurst = 'sfx/shoot_burst.mp3';
   static const String shootMulti = 'sfx/shoot_multi.mp3';
 
+  /// Shared audio context: mix with others so SFX never steal BGM focus.
+  static final AudioContext _mixCtx = AudioContextConfig(
+    focus: AudioContextConfigFocus.mixWithOthers,
+  ).build();
+
   AudioPlayer? _bgm;
+  AudioPool? _poolNormal;
+  AudioPool? _poolBurst;
+  AudioPool? _poolMulti;
   StreamSubscription<void>? _completeSub;
   StreamSubscription<Duration>? _positionSub;
   int _trackIndex = 0;
   bool _playlistActive = false;
   bool _userPaused = false;
   bool _ready = false;
+  bool _sfxReady = false;
+  /// When true, [onPlayerComplete] from intentional stop/seek is ignored.
+  bool _ignoreComplete = false;
   double _positionSeconds = 0;
 
   /// Optional hook when a track ends (before the next starts).
-  /// Used for section-end juice / act transitions.
   Future<void> Function(int completedIndex, int nextIndex)? onSectionBoundary;
 
   int get trackIndex => _trackIndex;
@@ -57,9 +67,38 @@ class GameAudio {
     }
   }
 
+  Future<void> _ensureSfxPools() async {
+    if (_sfxReady) return;
+    await ensureLoaded();
+    try {
+      _poolNormal = await FlameAudio.createPool(
+        shootNormal,
+        minPlayers: 1,
+        maxPlayers: 4,
+        audioContext: _mixCtx,
+      );
+      _poolBurst = await FlameAudio.createPool(
+        shootBurst,
+        minPlayers: 1,
+        maxPlayers: 4,
+        audioContext: _mixCtx,
+      );
+      _poolMulti = await FlameAudio.createPool(
+        shootMulti,
+        minPlayers: 1,
+        maxPlayers: 4,
+        audioContext: _mixCtx,
+      );
+      _sfxReady = true;
+    } catch (e, st) {
+      debugPrint('GameAudio SFX pools failed: $e\n$st');
+    }
+  }
+
   /// Call from the ¡JUGAR! tap (or restart) so browsers unlock audio.
   Future<void> startPlaylist() async {
     await ensureLoaded();
+    await _ensureSfxPools();
     _userPaused = false;
     if (_playlistActive && _bgm != null) {
       await resume();
@@ -76,9 +115,12 @@ class GameAudio {
     if (_bgm != null) return;
     final player = AudioPlayer();
     player.audioCache = FlameAudio.audioCache;
+    await player.setPlayerMode(PlayerMode.mediaPlayer);
     await player.setReleaseMode(ReleaseMode.release);
     await player.setVolume(0.4);
+    await player.setAudioContext(_mixCtx);
     _completeSub = player.onPlayerComplete.listen((_) {
+      if (_ignoreComplete) return;
       unawaited(_onTrackComplete());
     });
     _positionSub = player.onPositionChanged.listen((pos) {
@@ -92,16 +134,26 @@ class GameAudio {
     if (player == null || !_playlistActive || _userPaused) return;
     final track = _bgmPlaylist[_trackIndex % _bgmPlaylist.length];
     _positionSeconds = 0;
+    _ignoreComplete = true;
     try {
       await player.stop();
-      await player.play(AssetSource(track));
+      await player.play(
+        AssetSource(track),
+        volume: 0.4,
+        mode: PlayerMode.mediaPlayer,
+        ctx: _mixCtx,
+      );
     } catch (e, st) {
       debugPrint('GameAudio BGM play failed ($track): $e\n$st');
+    } finally {
+      // Allow the event loop to flush any complete event from stop().
+      await Future<void>.delayed(Duration.zero);
+      _ignoreComplete = false;
     }
   }
 
   Future<void> _onTrackComplete() async {
-    if (!_playlistActive || _userPaused) return;
+    if (!_playlistActive || _userPaused || _ignoreComplete) return;
     final completed = _trackIndex;
     final next = (_trackIndex + 1) % _bgmPlaylist.length;
     final boundary = onSectionBoundary;
@@ -112,7 +164,7 @@ class GameAudio {
         debugPrint('GameAudio section boundary failed: $e\n$st');
       }
     }
-    if (!_playlistActive || _userPaused) return;
+    if (!_playlistActive || _userPaused || _ignoreComplete) return;
     _trackIndex = next;
     _positionSeconds = 0;
     await _playCurrentTrack();
@@ -155,26 +207,32 @@ class GameAudio {
     _playlistActive = false;
     _userPaused = false;
     _positionSeconds = 0;
+    _ignoreComplete = true;
     try {
       await _bgm?.stop();
     } catch (e) {
       debugPrint('GameAudio stop failed: $e');
+    } finally {
+      await Future<void>.delayed(Duration.zero);
+      _ignoreComplete = false;
     }
   }
 
+  /// Weapon SFX only — never touches the BGM player or playlist.
   Future<void> playShoot({
     required bool multiShot,
     required bool burstMode,
   }) async {
-    final file = multiShot
-        ? shootMulti
+    await _ensureSfxPools();
+    final pool = multiShot
+        ? _poolMulti
         : burstMode
-            ? shootBurst
-            : shootNormal;
+            ? _poolBurst
+            : _poolNormal;
     try {
-      await FlameAudio.play(file, volume: 0.55);
+      await pool?.start(volume: 0.55);
     } catch (e) {
-      debugPrint('GameAudio SFX failed ($file): $e');
+      debugPrint('GameAudio SFX failed: $e');
     }
   }
 
@@ -183,10 +241,21 @@ class GameAudio {
     _completeSub = null;
     await _positionSub?.cancel();
     _positionSub = null;
-    await _bgm?.dispose();
+    _ignoreComplete = true;
+    try {
+      await _bgm?.dispose();
+    } catch (_) {}
     _bgm = null;
+    await _poolNormal?.dispose();
+    await _poolBurst?.dispose();
+    await _poolMulti?.dispose();
+    _poolNormal = null;
+    _poolBurst = null;
+    _poolMulti = null;
+    _sfxReady = false;
     _playlistActive = false;
     _userPaused = false;
     onSectionBoundary = null;
+    _ignoreComplete = false;
   }
 }

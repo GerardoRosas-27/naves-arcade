@@ -72,13 +72,23 @@ class NavesGame extends FlameGame
   static const double worldWidth = 400;
   static const double worldHeight = 720;
 
-  NavesGame()
+  /// Hard caps to keep FPS stable across section transitions / long sessions.
+  static const int maxPlayerBullets = 48;
+  static const int maxEnemyBullets = 64;
+  static const int maxExplosions = 10;
+  static const int maxEnemies = 36;
+  static const int maxPowerUps = 8;
+
+  NavesGame({this.onRequestRestart})
       : super(
           camera: CameraComponent.withFixedResolution(
             width: worldWidth,
             height: worldHeight,
           ),
         );
+
+  /// When set, Reiniciar tears down this Flame session and creates a fresh one.
+  final VoidCallback? onRequestRestart;
 
   Vector2 get playArea => Vector2(worldWidth, worldHeight);
 
@@ -95,6 +105,10 @@ class NavesGame extends FlameGame
   bool isGameOver = false;
   bool _shooting = false;
   bool _keyboardShooting = false;
+  bool _detached = false;
+  /// Bumps on restart / detach to cancel in-flight section-boundary Futures.
+  int _sectionEpoch = 0;
+
   /// Called by [GamePage] to restore Focus for web keyboard input.
   VoidCallback? requestKeyboardFocus;
   double _fireCooldown = 0;
@@ -115,6 +129,7 @@ class NavesGame extends FlameGame
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    if (_detached) return;
 
     camera.viewfinder.anchor = Anchor.topLeft;
     _cameraRest = Vector2.zero();
@@ -136,9 +151,37 @@ class NavesGame extends FlameGame
     spawnManager = SpawnManager();
     world.add(spawnManager);
 
-    // High score after player exists: _publishHud reads player.hasShield.
     await _loadHighScore();
     _publishHud();
+  }
+
+  /// Clear audio hooks and cancel pending section work (safe to call twice).
+  void prepareTeardown() {
+    _detached = true;
+    _sectionEpoch++;
+    isGameOver = true;
+    isPaused = true;
+    if (GameAudio.instance.onSectionBoundary == _onSectionBoundary) {
+      GameAudio.instance.onSectionBoundary = null;
+    }
+    requestKeyboardFocus = null;
+    try {
+      pauseEngine();
+    } catch (_) {}
+  }
+
+  /// Drop remaining Flame children after the GameWidget has swapped sessions.
+  void destroySession() {
+    prepareTeardown();
+    try {
+      overlays.clear();
+    } catch (_) {}
+    try {
+      world.removeAll(world.children.toList());
+    } catch (_) {}
+    try {
+      camera.viewport.removeAll(camera.viewport.children.toList());
+    } catch (_) {}
   }
 
   Future<void> _loadHighScore() async {
@@ -156,6 +199,7 @@ class NavesGame extends FlameGame
   }
 
   void _publishHud() {
+    if (_detached) return;
     final mult = _comboMultiplier();
     hud.value = GameHudState(
       score: _score,
@@ -177,10 +221,11 @@ class NavesGame extends FlameGame
 
   @override
   void update(double dt) {
-    if (isPaused || isGameOver) return;
+    if (_detached || isPaused || isGameOver) return;
     musicDirector.update();
     starfield.scrollScale = musicDirector.cue.scrollScale;
     super.update(dt);
+    _enforceEntityCaps();
 
     if (_combo > 0) {
       _comboTimer -= dt;
@@ -246,12 +291,7 @@ class NavesGame extends FlameGame
     _score += points;
     _publishHud();
 
-    world.add(
-      Explosion(
-        position: enemy.position.clone(),
-        color: enemy.neonColor,
-      ),
-    );
+    _spawnExplosion(enemy.position.clone(), enemy.neonColor);
 
     if (_rng.nextDouble() < 0.18) {
       world.add(
@@ -269,12 +309,10 @@ class NavesGame extends FlameGame
   void onPlayerHit() {
     if (player.hasShield) {
       player.breakShield();
-      world.add(
-        Explosion(
-          position: player.position.clone(),
-          color: const Color(0xFF00E5FF),
-          intensity: 0.6,
-        ),
+      _spawnExplosion(
+        player.position.clone(),
+        const Color(0xFF00E5FF),
+        intensity: 0.6,
       );
       _shake(0.15, 4);
       _publishHud();
@@ -285,12 +323,10 @@ class NavesGame extends FlameGame
     _lives -= 1;
     _combo = 0;
     _publishHud();
-    world.add(
-      Explosion(
-        position: player.position.clone(),
-        color: const Color(0xFFFF4081),
-        intensity: 1.1,
-      ),
+    _spawnExplosion(
+      player.position.clone(),
+      const Color(0xFFFF4081),
+      intensity: 1.1,
     );
     _shake(0.28, 8);
     _hapticHeavy();
@@ -300,6 +336,17 @@ class NavesGame extends FlameGame
     } else {
       player.respawn();
     }
+  }
+
+  void _spawnExplosion(Vector2 position, Color color, {double intensity = 1}) {
+    final existing = world.children.whereType<Explosion>().length;
+    if (existing >= maxExplosions) {
+      final explosions = world.children.whereType<Explosion>();
+      if (explosions.isNotEmpty) {
+        explosions.first.removeFromParent();
+      }
+    }
+    world.add(Explosion(position: position, color: color, intensity: intensity));
   }
 
   Future<void> _triggerGameOver() async {
@@ -324,34 +371,58 @@ class NavesGame extends FlameGame
     _hapticMedium();
   }
 
+  /// Clear player + enemy projectiles and orphan explosions.
+  void _clearProjectiles({bool includeExplosions = true}) {
+    final toRemove = <Component>[
+      ...world.children.whereType<Bullet>(),
+      ...world.children.whereType<EnemyBullet>(),
+    ];
+    if (includeExplosions) {
+      toRemove.addAll(world.children.whereType<Explosion>());
+    }
+    world.removeAll(toRemove);
+  }
+
+  void _enforceEntityCaps() {
+    void cull<T extends Component>(int max) {
+      final list = world.children.whereType<T>().toList();
+      final overflow = list.length - max;
+      if (overflow <= 0) return;
+      for (var i = 0; i < overflow; i++) {
+        list[i].removeFromParent();
+      }
+    }
+
+    cull<Bullet>(maxPlayerBullets);
+    cull<EnemyBullet>(maxEnemyBullets);
+    cull<Explosion>(maxExplosions);
+    cull<Enemy>(maxEnemies);
+    cull<PowerUp>(maxPowerUps);
+  }
 
   /// End of a BGM track = end of section (juice + brief spawn pause), then next act.
   Future<void> _onSectionBoundary(int completedIndex, int nextIndex) async {
-    if (isGameOver) return;
+    if (_detached || isGameOver) return;
+    final epoch = _sectionEpoch;
     musicDirector.beginSectionEnd();
     spawnManager.pausedForSection = true;
 
+    // Hard-clear all projectiles so nothing lingers across the act change.
+    _clearProjectiles(includeExplosions: false);
+
     final enemies = world.children.whereType<Enemy>().toList();
-    // Partial clear: destroy about half for a "breath" between acts.
     for (var i = 0; i < enemies.length; i++) {
       if (i.isOdd) continue;
       final e = enemies[i];
       if (!e.isMounted) continue;
-      world.add(
-        Explosion(
-          position: e.position.clone(),
-          color: e.neonColor,
-          intensity: 0.85,
-        ),
-      );
+      _spawnExplosion(e.position.clone(), e.neonColor, intensity: 0.85);
       e.removeFromParent();
     }
-    // Sweep leftover enemy bullets for a clean act start.
-    world.removeAll(world.children.whereType<EnemyBullet>());
+    _enforceEntityCaps();
     _shake(0.35, 7);
 
     await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (isGameOver) return;
+    if (_detached || isGameOver || epoch != _sectionEpoch) return;
 
     spawnManager.pausedForSection = false;
     musicDirector.beginAct(nextIndex);
@@ -370,7 +441,22 @@ class NavesGame extends FlameGame
     requestKeyboardFocus?.call();
   }
 
+  /// Public restart entry used by overlays — prefers full session recreate.
   void restart() {
+    final recreate = onRequestRestart;
+    if (recreate != null) {
+      // Cancel pending section work; GamePage swaps in a fresh NavesGame.
+      _sectionEpoch++;
+      prepareTeardown();
+      recreate();
+      unawaited(GameAudio.instance.resume());
+      return;
+    }
+    _restartInPlace();
+  }
+
+  void _restartInPlace() {
+    _sectionEpoch++;
     isGameOver = false;
     isPaused = false;
     _score = 0;
@@ -379,8 +465,12 @@ class NavesGame extends FlameGame
     _comboTimer = 0;
     _shooting = false;
     _keyboardShooting = false;
+    _movePointer = null;
+    _shootPointer = null;
     if (_playerReady && player.isMounted) {
       player.keyboardDelta = Vector2.zero();
+      player.joystickDelta = Vector2.zero();
+      player.dragTarget = null;
     }
     _fireCooldown = 0;
     _shakeTime = 0;
@@ -402,7 +492,9 @@ class NavesGame extends FlameGame
     }
     spawnManager.reset();
     musicDirector.beginAct(GameAudio.instance.trackIndex);
+    GameAudio.instance.onSectionBoundary = _onSectionBoundary;
     overlays.remove(GameOverOverlay.id);
+    overlays.remove('pause'); // PauseOverlay.id
     if (!overlays.isActive(HudOverlay.id)) {
       overlays.add(HudOverlay.id);
     }
@@ -432,9 +524,6 @@ class NavesGame extends FlameGame
     HapticFeedback.heavyImpact();
   }
 
-
-  // --- Keyboard (web / desktop) ---
-
   static bool _isControlKey(LogicalKeyboardKey key) {
     return key == LogicalKeyboardKey.keyA ||
         key == LogicalKeyboardKey.keyD ||
@@ -444,7 +533,7 @@ class NavesGame extends FlameGame
   }
 
   void _applyKeyboard(Set<LogicalKeyboardKey> keysPressed) {
-    if (!_playerReady) return;
+    if (!_playerReady || _detached) return;
 
     var x = 0.0;
     var y = 0.0;
@@ -470,8 +559,6 @@ class NavesGame extends FlameGame
     }
     return KeyEventResult.ignored;
   }
-
-  // --- Touch / pointer ---
 
   int? _movePointer;
   int? _shootPointer;

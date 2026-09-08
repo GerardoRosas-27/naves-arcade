@@ -14,16 +14,35 @@ class GamePage extends StatefulWidget {
 }
 
 class _GamePageState extends State<GamePage> {
-  late final NavesGame _game;
+  late NavesGame _game;
   late final FocusNode _gameFocus;
+  int _session = 0;
 
   @override
   void initState() {
     super.initState();
-    _game = NavesGame();
     _gameFocus = FocusNode(debugLabel: 'naves-game');
-    _game.requestKeyboardFocus = _ensureGameFocus;
+    _bootGame();
     WidgetsBinding.instance.addPostFrameCallback((_) => _ensureGameFocus());
+  }
+
+  void _bootGame() {
+    _game = NavesGame(onRequestRestart: _recreateSession);
+    _game.requestKeyboardFocus = _ensureGameFocus;
+  }
+
+  /// Full teardown + new Flame session (no stacked timers/components/listeners).
+  void _recreateSession() {
+    final old = _game;
+    old.prepareTeardown();
+    setState(() {
+      _session++;
+      _bootGame();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      old.destroySession();
+      _ensureGameFocus();
+    });
   }
 
   void _ensureGameFocus() {
@@ -37,7 +56,8 @@ class _GamePageState extends State<GamePage> {
 
   @override
   void dispose() {
-    _game.requestKeyboardFocus = null;
+    _game.prepareTeardown();
+    _game.destroySession();
     _gameFocus.dispose();
     super.dispose();
   }
@@ -46,6 +66,7 @@ class _GamePageState extends State<GamePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: GameWidget<NavesGame>(
+        key: ValueKey(_session),
         game: _game,
         focusNode: _gameFocus,
         autofocus: true,
