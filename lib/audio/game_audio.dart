@@ -23,6 +23,9 @@ class GameAudio {
   static const String shootNormal = 'sfx/shoot_normal.mp3';
   static const String shootBurst = 'sfx/shoot_burst.mp3';
   static const String shootMulti = 'sfx/shoot_multi.mp3';
+  static const String shieldWave = 'sfx/shield_wave.mp3';
+  static const String destroyWave = 'sfx/destroy_wave.mp3';
+  static const String noCharge = 'sfx/no_charge.mp3';
 
   /// Shared audio context: mix with others so SFX never steal BGM focus.
   static final AudioContext _mixCtx = AudioContextConfig(
@@ -33,6 +36,9 @@ class GameAudio {
   AudioPool? _poolNormal;
   AudioPool? _poolBurst;
   AudioPool? _poolMulti;
+  AudioPool? _poolShield;
+  AudioPool? _poolDestroy;
+  AudioPool? _poolNoCharge;
   StreamSubscription<void>? _completeSub;
   StreamSubscription<Duration>? _positionSub;
   int _trackIndex = 0;
@@ -60,6 +66,9 @@ class GameAudio {
         shootNormal,
         shootBurst,
         shootMulti,
+        shieldWave,
+        destroyWave,
+        noCharge,
       ]);
       _ready = true;
     } catch (e, st) {
@@ -87,6 +96,24 @@ class GameAudio {
         shootMulti,
         minPlayers: 1,
         maxPlayers: 4,
+        audioContext: _mixCtx,
+      );
+      _poolShield = await FlameAudio.createPool(
+        shieldWave,
+        minPlayers: 1,
+        maxPlayers: 2,
+        audioContext: _mixCtx,
+      );
+      _poolDestroy = await FlameAudio.createPool(
+        destroyWave,
+        minPlayers: 1,
+        maxPlayers: 2,
+        audioContext: _mixCtx,
+      );
+      _poolNoCharge = await FlameAudio.createPool(
+        noCharge,
+        minPlayers: 1,
+        maxPlayers: 2,
         audioContext: _mixCtx,
       );
       _sfxReady = true;
@@ -236,6 +263,35 @@ class GameAudio {
     }
   }
 
+  /// Mechanic A SFX — isolated pool, never touches BGM.
+  Future<void> playShieldWave() async {
+    await _ensureSfxPools();
+    try {
+      await _poolShield?.start(volume: 0.4);
+    } catch (e) {
+      debugPrint('GameAudio shield SFX failed: $e');
+    }
+  }
+
+  /// Mechanic B SFX — isolated pool, never touches BGM.
+  Future<void> playDestroyWave() async {
+    await _ensureSfxPools();
+    try {
+      await _poolDestroy?.start(volume: 0.45);
+    } catch (e) {
+      debugPrint('GameAudio destroy SFX failed: $e');
+    }
+  }
+
+  Future<void> playNoCharge() async {
+    await _ensureSfxPools();
+    try {
+      await _poolNoCharge?.start(volume: 0.3);
+    } catch (e) {
+      debugPrint('GameAudio no-charge SFX failed: $e');
+    }
+  }
+
   Future<void> dispose() async {
     await _completeSub?.cancel();
     _completeSub = null;
@@ -249,9 +305,15 @@ class GameAudio {
     await _poolNormal?.dispose();
     await _poolBurst?.dispose();
     await _poolMulti?.dispose();
+    await _poolShield?.dispose();
+    await _poolDestroy?.dispose();
+    await _poolNoCharge?.dispose();
     _poolNormal = null;
     _poolBurst = null;
     _poolMulti = null;
+    _poolShield = null;
+    _poolDestroy = null;
+    _poolNoCharge = null;
     _sfxReady = false;
     _playlistActive = false;
     _userPaused = false;

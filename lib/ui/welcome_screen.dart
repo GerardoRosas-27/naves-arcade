@@ -219,15 +219,20 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       _infoRow(Icons.sports_esports, 'Arrastra o usa el joystick'),
                       const SizedBox(height: 8),
                       _infoRow(Icons.flash_on, 'Mantén pulsado para disparar'),
+                      const SizedBox(height: 8),
+                      _infoRow(
+                        Icons.shield,
+                        'Botones N/M: escudo lento y onda destructiva',
+                      ),
                       if (kIsWeb) ...[
                         const SizedBox(height: 8),
                         _infoRow(
                           Icons.keyboard,
-                          'Web: WASD mover · Espacio disparar',
+                          'Web: WASD · Espacio · N escudo · M onda',
                         ),
                       ],
                       const SizedBox(height: 8),
-                      _infoRow(Icons.star, 'Recoge power-ups: ráfaga, escudo, multi'),
+                      _infoRow(Icons.star, 'Power-ups: munición + tipo / carga de escudo'),
                     ],
                   ),
                 ),

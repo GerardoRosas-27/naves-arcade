@@ -37,9 +37,12 @@ flutter build web          # build de producción web
 |--------|------|
 | Mover | Arrastra en la mitad izquierda o usa el joystick |
 | Disparar | Toca / mantén en la mitad derecha |
+| Escudo lento (A) | Mantén el botón **N** (derecha) — carga acumulativa |
+| Onda destructiva (B) | Mantén el botón **M** (derecha) — gasta munición |
 | Pausar | Botón ⏸ en el HUD |
 | Mover (web) | **WASD** (A izquierda, D derecha, W arriba, S abajo) |
 | Disparar (web) | **Espacio** (mantener) |
+| Escudo / Onda (web) | Mantén **N** / **M** |
 
 En web, teclado y arrastre/toque funcionan a la vez. El joystick táctil se mantiene en móvil.
 
@@ -59,7 +62,7 @@ El gameplay sigue la BGM (`bgm_01`–`bgm_04`) por **actos** y ritmo.
 
 Al terminar una pista: pausa breve de spawn, limpieza parcial de enemigos y “juice”; al empezar la siguiente, nuevo acto (spawn, patrones, velocidad).
 
-Patrones de fuego enemigo: `straight`, `fan`, `spiral` (paramétrico). Controles WASD+espacio, táctiles y SFX se mantienen.
+Patrones de fuego enemigo: `straight`, `fan`, `spiral` (paramétrico). Controles WASD+espacio+N/M (escudo lento / onda destructiva), táctiles y SFX aislados del BGM.
 
 Re-generar análisis (opcional): `python3 tool/analyze_bgm.py`
 

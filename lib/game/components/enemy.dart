@@ -63,19 +63,22 @@ class Enemy extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
-    _phase += dt * 3;
+    // Mechanic A: enemies inside the slow wave move/fire slower.
+    final scale = game.entityTimeScaleAt(position);
+    final sdt = dt * scale;
+    _phase += sdt * 3;
 
     switch (kind) {
       case EnemyKind.scout:
-        position.y += speed * dt;
+        position.y += speed * sdt;
       case EnemyKind.tank:
-        position.y += speed * 0.7 * dt;
+        position.y += speed * 0.7 * sdt;
       case EnemyKind.zig:
-        position.y += speed * dt;
-        position.x += sin(_phase) * 90 * dt;
+        position.y += speed * sdt;
+        position.x += sin(_phase) * 90 * sdt;
     }
 
-    _updateFire(dt);
+    _updateFire(sdt);
 
     if (position.y > game.playArea.y + 40) {
       removeFromParent();

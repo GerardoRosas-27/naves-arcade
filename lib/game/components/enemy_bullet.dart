@@ -35,12 +35,14 @@ class EnemyBullet extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
+    final scale = game.projectileTimeScaleAt(position);
+    final scaledDt = dt * scale;
     if (spin != 0) {
-      final angle = atan2(velocity.y, velocity.x) + spin * dt;
+      final angle = atan2(velocity.y, velocity.x) + spin * scaledDt;
       final speed = velocity.length;
       velocity = Vector2(cos(angle), sin(angle)) * speed;
     }
-    position += velocity * dt;
+    position += velocity * scaledDt;
     if (position.y < -30 ||
         position.y > game.playArea.y + 30 ||
         position.x < -30 ||

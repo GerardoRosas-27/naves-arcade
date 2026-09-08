@@ -18,25 +18,54 @@ class PlayerShip extends PositionComponent
           priority: 10,
         );
 
+  /// Feel: max 10s of slow-wave hold time.
+  static const double shieldChargeMax = 10.0;
+
+  /// Feel: ammo stock cap.
+  static const int ammoMax = 100;
+
+  /// Feel: starting ammo so the first seconds are playable.
+  static const int ammoStart = 50;
+
+  /// Feel: shield pickup grant (seconds of charge).
+  static const double shieldPickupGrant = 3.5;
+
+  /// Feel: weapon pickup ammo grants.
+  static const int burstAmmoGrant = 35;
+  static const int multiAmmoGrant = 40;
+
   Vector2 joystickDelta = Vector2.zero();
   Vector2 keyboardDelta = Vector2.zero();
   Vector2? dragTarget;
 
-  bool hasShield = false;
+  /// Cumulative slow-wave charge (seconds of hold remaining).
+  double shieldCharge = 0;
+
+  /// Finite ammo stock.
+  int ammo = ammoStart;
+
   bool burstMode = false;
   bool multiShot = false;
 
-  double _shieldTimer = 0;
-  double _burstTimer = 0;
-  double _multiTimer = 0;
   double _invuln = 0;
   double _blink = 0;
+  double _wavePulse = 0;
 
   double get fireRate {
     if (burstMode) return 0.09;
     if (multiShot) return 0.16;
     return 0.18;
   }
+
+  /// Ammo spent per fire action (multi spends most).
+  int get fireAmmoCost {
+    if (multiShot) return 3;
+    if (burstMode) return 2;
+    return 1;
+  }
+
+  double get shieldFill => (shieldCharge / shieldChargeMax).clamp(0.0, 1.0);
+  double get ammoFill => (ammo / ammoMax).clamp(0.0, 1.0);
 
   @override
   Future<void> onLoad() async {
@@ -47,12 +76,10 @@ class PlayerShip extends PositionComponent
 
   void resetState() {
     position = Vector2(game.playArea.x / 2, game.playArea.y * 0.78);
-    hasShield = false;
+    shieldCharge = 0;
+    ammo = ammoStart;
     burstMode = false;
     multiShot = false;
-    _shieldTimer = 0;
-    _burstTimer = 0;
-    _multiTimer = 0;
     _invuln = 1.5;
     joystickDelta = Vector2.zero();
     keyboardDelta = Vector2.zero();
@@ -64,25 +91,36 @@ class PlayerShip extends PositionComponent
     _invuln = 2.0;
   }
 
+  void addShieldCharge([double amount = shieldPickupGrant]) {
+    shieldCharge = min(shieldChargeMax, shieldCharge + amount);
+  }
+
+  void addAmmo(int amount) {
+    ammo = min(ammoMax, ammo + amount);
+  }
+
+  bool trySpendAmmo(int cost) {
+    if (ammo < cost) return false;
+    ammo -= cost;
+    return true;
+  }
+
+  /// Shield pickup → cumulative charge (no one-hit bubble).
   void activateShield() {
-    hasShield = true;
-    _shieldTimer = 8;
+    addShieldCharge(shieldPickupGrant);
   }
 
-  void breakShield() {
-    hasShield = false;
-    _shieldTimer = 0;
-    _invuln = 0.8;
-  }
-
+  /// Weapon pickup → add stock + set type (persistent until another weapon).
   void activateBurst() {
     burstMode = true;
-    _burstTimer = 7;
+    multiShot = false;
+    addAmmo(burstAmmoGrant);
   }
 
   void activateMultiShot() {
     multiShot = true;
-    _multiTimer = 8;
+    burstMode = false;
+    addAmmo(multiAmmoGrant);
   }
 
   @override
@@ -91,19 +129,7 @@ class PlayerShip extends PositionComponent
 
     if (_invuln > 0) _invuln -= dt;
     _blink += dt * 12;
-
-    if (_shieldTimer > 0) {
-      _shieldTimer -= dt;
-      if (_shieldTimer <= 0) hasShield = false;
-    }
-    if (_burstTimer > 0) {
-      _burstTimer -= dt;
-      if (_burstTimer <= 0) burstMode = false;
-    }
-    if (_multiTimer > 0) {
-      _multiTimer -= dt;
-      if (_multiTimer <= 0) multiShot = false;
-    }
+    _wavePulse += dt * 6;
 
     final speed = 280.0;
     // Joystick + teclado (WASD) se combinan; el arrastre solo si no hay input direccional.
@@ -127,6 +153,48 @@ class PlayerShip extends PositionComponent
 
     final cx = size.x / 2;
     final cy = size.y / 2;
+
+    // Slow wave ring (mechanic A)
+    if (game.slowWaveActive) {
+      final r = NavesGame.slowWaveRadius;
+      final pulse = 1 + 0.04 * sin(_wavePulse);
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r * pulse,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5
+          ..color = const Color(0xAA00E5FF),
+      );
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r * pulse,
+        Paint()
+          ..color = const Color(0x2200E5FF)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12),
+      );
+    }
+
+    // Destructive wave ring (mechanic B)
+    if (game.destroyWaveActive) {
+      final r = NavesGame.destroyWaveRadius;
+      final pulse = 1 + 0.05 * sin(_wavePulse * 1.3);
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r * pulse,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3
+          ..color = const Color(0xCCFF6D00),
+      );
+      canvas.drawCircle(
+        Offset(cx, cy),
+        r * pulse * 0.85,
+        Paint()
+          ..color = const Color(0x33FF6D00)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 14),
+      );
+    }
 
     // Engine glow
     final glow = Paint()
@@ -166,24 +234,6 @@ class PlayerShip extends PositionComponent
       4,
       Paint()..color = const Color(0xFFFFFFFF),
     );
-
-    if (hasShield) {
-      canvas.drawCircle(
-        Offset(cx, cy),
-        26,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xAA00E5FF),
-      );
-      canvas.drawCircle(
-        Offset(cx, cy),
-        26,
-        Paint()
-          ..color = const Color(0x2200E5FF)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
-      );
-    }
 
     if (burstMode || multiShot) {
       final accent = burstMode

@@ -1,4 +1,3 @@
-
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
@@ -28,7 +27,9 @@ class Bullet extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
-    position += velocity * dt;
+    // Mechanic A: player bullets also slow inside the slow wave.
+    final scale = game.projectileTimeScaleAt(position);
+    position += velocity * dt * scale;
     if (position.y < -20 ||
         position.y > game.playArea.y + 20 ||
         position.x < -20 ||
