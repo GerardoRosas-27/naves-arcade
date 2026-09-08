@@ -1,5 +1,5 @@
 # Multi-stage: Flutter web build then static serve on Railway (PORT)
-FROM ghcr.io/cirruslabs/flutter:3.47.2 AS build
+FROM ghcr.io/gmeligio/flutter-web:3.47.2 AS build
 
 WORKDIR /app
 
