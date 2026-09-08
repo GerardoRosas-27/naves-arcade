@@ -16,7 +16,12 @@ class HudOverlay extends StatelessWidget {
       child: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: EdgeInsets.fromLTRB(
+              16,
+              game.isLandscape ? 4 : 8,
+              16,
+              0,
+            ),
             child: ValueListenableBuilder<GameHudState>(
               valueListenable: game.hud,
               builder: (context, state, _) {
@@ -32,11 +37,11 @@ class HudOverlay extends StatelessWidget {
                             children: [
                               Text(
                                 'PUNTOS  ${state.score}',
-                                style: const TextStyle(
-                                  color: Color(0xFFE8F7FF),
+                                style: TextStyle(
+                                  color: const Color(0xFFE8F7FF),
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  shadows: [
+                                  fontSize: game.isLandscape ? 16 : 18,
+                                  shadows: const [
                                     Shadow(
                                       color: Color(0xFF00E5FF),
                                       blurRadius: 8,
@@ -44,7 +49,7 @@ class HudOverlay extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              SizedBox(height: game.isLandscape ? 2 : 4),
                               Text(
                                 state.combo > 1
                                     ? 'COMBO x${state.combo}  ·  x${state.multiplier}'
@@ -54,7 +59,7 @@ class HudOverlay extends StatelessWidget {
                                       ? const Color(0xFFFFD54F)
                                       : Colors.white54,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 13,
+                                  fontSize: game.isLandscape ? 12 : 13,
                                 ),
                               ),
                             ],
@@ -67,7 +72,7 @@ class HudOverlay extends StatelessWidget {
                               padding: const EdgeInsets.only(left: 4),
                               child: Icon(
                                 Icons.favorite,
-                                size: 22,
+                                size: game.isLandscape ? 18 : 22,
                                 color: alive
                                     ? const Color(0xFFFF4081)
                                     : Colors.white24,
@@ -83,12 +88,20 @@ class HudOverlay extends StatelessWidget {
                           },
                           icon: const Icon(Icons.pause_circle_filled),
                           color: const Color(0xFF00E5FF),
-                          iconSize: 32,
+                          iconSize: game.isLandscape ? 28 : 32,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 40,
+                            minHeight: 40,
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
-                    _ResourceBars(state: state),
+                    SizedBox(height: game.isLandscape ? 4 : 8),
+                    _ResourceBars(
+                      state: state,
+                      compact: game.isLandscape,
+                    ),
                   ],
                 );
               },
@@ -98,10 +111,11 @@ class HudOverlay extends StatelessWidget {
           // Right-edge ability holds — raised so thumbs clear the fire zone.
           Positioned(
             right: 12,
-            bottom: game.isLandscape ? 24 : 112,
+            bottom: game.isLandscape ? 16 : 112,
             child: ValueListenableBuilder<GameHudState>(
               valueListenable: game.hud,
               builder: (context, state, _) {
+                final compact = game.isLandscape;
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -112,8 +126,9 @@ class HudOverlay extends StatelessWidget {
                       active: state.slowWaveActive,
                       color: const Color(0xFF00E5FF),
                       onHoldChanged: game.setShieldHold,
+                      size: compact ? 60 : 72,
                     ),
-                    const SizedBox(height: 14),
+                    SizedBox(height: compact ? 10 : 14),
                     _HoldAbilityButton(
                       label: 'M',
                       hint: 'Onda',
@@ -121,6 +136,7 @@ class HudOverlay extends StatelessWidget {
                       active: state.destroyWaveActive,
                       color: const Color(0xFFFF6D00),
                       onHoldChanged: game.setDestroyHold,
+                      size: compact ? 60 : 72,
                     ),
                   ],
                 );
@@ -134,9 +150,10 @@ class HudOverlay extends StatelessWidget {
 }
 
 class _ResourceBars extends StatelessWidget {
-  const _ResourceBars({required this.state});
+  const _ResourceBars({required this.state, this.compact = false});
 
   final GameHudState state;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -148,15 +165,17 @@ class _ResourceBars extends StatelessWidget {
             fill: state.shieldFill,
             color: const Color(0xFF00E5FF),
             active: state.slowWaveActive,
+            compact: compact,
           ),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: compact ? 8 : 12),
         Expanded(
           child: _Bar(
             label: 'MUNICIÓN ${state.ammo}',
             fill: state.ammoFill,
             color: const Color(0xFFFFAB00),
             active: state.destroyWaveActive,
+            compact: compact,
           ),
         ),
       ],
@@ -170,12 +189,14 @@ class _Bar extends StatelessWidget {
     required this.fill,
     required this.color,
     required this.active,
+    this.compact = false,
   });
 
   final String label;
   final double fill;
   final Color color;
   final bool active;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -186,17 +207,17 @@ class _Bar extends StatelessWidget {
           label,
           style: TextStyle(
             color: active ? color : Colors.white70,
-            fontSize: 11,
+            fontSize: compact ? 10 : 11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
           ),
         ),
-        const SizedBox(height: 3),
+        SizedBox(height: compact ? 2 : 3),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
             value: fill.clamp(0.0, 1.0),
-            minHeight: 8,
+            minHeight: compact ? 6 : 8,
             backgroundColor: Colors.white12,
             color: color,
           ),
@@ -214,6 +235,7 @@ class _HoldAbilityButton extends StatelessWidget {
     required this.active,
     required this.color,
     required this.onHoldChanged,
+    this.size = 72,
   });
 
   final String label;
@@ -222,34 +244,36 @@ class _HoldAbilityButton extends StatelessWidget {
   final bool active;
   final Color color;
   final ValueChanged<bool> onHoldChanged;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
+    final inner = size * 0.78;
     return Listener(
       behavior: HitTestBehavior.opaque,
       onPointerDown: (_) => onHoldChanged(true),
       onPointerUp: (_) => onHoldChanged(false),
       onPointerCancel: (_) => onHoldChanged(false),
       child: SizedBox(
-        width: 72,
-        height: 72,
+        width: size,
+        height: size,
         child: Stack(
           alignment: Alignment.center,
           children: [
             SizedBox(
-              width: 72,
-              height: 72,
+              width: size,
+              height: size,
               child: CircularProgressIndicator(
                 value: fill.clamp(0.0, 1.0),
-                strokeWidth: 5,
+                strokeWidth: size < 70 ? 4 : 5,
                 backgroundColor: Colors.white12,
                 color: color,
               ),
             ),
             AnimatedContainer(
               duration: const Duration(milliseconds: 80),
-              width: 56,
-              height: 56,
+              width: inner,
+              height: inner,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: active
@@ -277,14 +301,14 @@ class _HoldAbilityButton extends StatelessWidget {
                     style: TextStyle(
                       color: color,
                       fontWeight: FontWeight.w900,
-                      fontSize: 18,
+                      fontSize: size < 70 ? 15 : 18,
                     ),
                   ),
                   Text(
                     hint,
                     style: TextStyle(
                       color: Colors.white70,
-                      fontSize: 9,
+                      fontSize: size < 70 ? 8 : 9,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
