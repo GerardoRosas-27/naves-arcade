@@ -99,12 +99,21 @@ class NavesGame extends FlameGame
   static const int maxEnemies = 36;
   static const int maxPowerUps = 8;
 
-  // --- Feel numbers (mechanic A / B) ---
-  /// Slow-wave radius around the ship (world units).
+  // --- Feel numbers (mechanic A / B) — Bruster v1.0.5 ---
+  /// Slow-wave radius around the ship (world units). Only affects enemy ships.
   static const double slowWaveRadius = 120;
 
-  /// Speed multiplier inside the slow wave (enemies + all bullets).
+  /// Base speed multiplier for enemy ships inside the slow wave (N).
+  /// Feel: 0.32 → ~68% más lento (balas NO afectadas).
   static const double slowFactor = 0.32;
+
+  /// Drastic slow for fast / high-level enemies that enter the N wave.
+  /// Feel: 0.08 → ~92% más lento (mucho más fuerte que 0.32) para poder esquivar.
+  static const double slowFactorFast = 0.08;
+
+  /// Enemies with speed ≥ this (or scout/zig) get [slowFactorFast] inside the wave.
+  /// Feel: scouts/zig mid-late y cualquier nave ≥150 u/s.
+  static const double fastEnemySpeedThreshold = 150;
 
   /// Passive shield regen per second while enemies are on screen and wave off.
   /// Feel: 0.4/s of 10 max → ~25s empty→full (~4%/s).
@@ -114,7 +123,7 @@ class NavesGame extends FlameGame
   /// Feel: 10/s of 100 max → ~10s empty→full (~10%/s) — clearly faster than shield.
   static const double ammoPassiveRegen = 10;
 
-  /// Destructive wave radius (world units).
+  /// Destructive wave radius (world units). Only removes enemy bullets (not ships).
   static const double destroyWaveRadius = 100;
 
   /// Ammo drained per second while holding the destructive wave (~5s at full).
@@ -158,6 +167,10 @@ class NavesGame extends FlameGame
 
   bool slowWaveActive = false;
   bool destroyWaveActive = false;
+
+  /// Last ability requested (N vs M) for mutual exclusion.
+  /// 0 = none, 1 = slow (N), 2 = destroy (M).
+  int _lastAbility = 0;
 
   /// Bumps on restart / detach to cancel in-flight section-boundary Futures.
   int _sectionEpoch = 0;
@@ -282,15 +295,26 @@ class NavesGame extends FlameGame
     return 1;
   }
 
-  /// Time scale for enemies at [pos] (mechanic A).
+  /// Time scale for an enemy ship under mechanic A (N shield wave).
+  /// Only slows enemy ships — never bullets. Fast/high-level → drastic factor.
+  double enemyTimeScale(Enemy enemy) {
+    if (!slowWaveActive || !_playerReady || !player.isMounted) return 1;
+    if (enemy.position.distanceTo(player.position) > slowWaveRadius) return 1;
+    final fast = enemy.speed >= fastEnemySpeedThreshold ||
+        enemy.kind == EnemyKind.scout ||
+        enemy.kind == EnemyKind.zig;
+    return fast ? slowFactorFast : slowFactor;
+  }
+
+  /// Deprecated positional helper (ships only via [enemyTimeScale]).
   double entityTimeScaleAt(Vector2 pos) {
     if (!slowWaveActive || !_playerReady || !player.isMounted) return 1;
     if (pos.distanceTo(player.position) <= slowWaveRadius) return slowFactor;
     return 1;
   }
 
-  /// Time scale for bullets (player + enemy) at [pos] (mechanic A).
-  double projectileTimeScaleAt(Vector2 pos) => entityTimeScaleAt(pos);
+  /// Bullets are NOT affected by the N slow wave (Bruster v1.0.5).
+  double projectileTimeScaleAt(Vector2 pos) => 1;
 
   void _cancelWaves() {
     slowWaveActive = false;
@@ -299,20 +323,36 @@ class NavesGame extends FlameGame
     _shieldHoldTouch = false;
     _destroyHoldKey = false;
     _destroyHoldTouch = false;
+    _lastAbility = 0;
   }
 
-  /// Mobile / overlay: set shield hold.
+  /// Mobile / overlay: set shield hold (N). Mutually exclusive with M.
   void setShieldHold(bool holding) {
     _shieldHoldTouch = holding;
-    if (holding) _tryStartSlowWave();
-    if (!holding && !_shieldHoldKey) slowWaveActive = false;
+    if (holding) {
+      _lastAbility = 1;
+      // Cancel destroy wave / holds — cannot use N and M together.
+      _destroyHoldTouch = false;
+      _destroyHoldKey = false;
+      destroyWaveActive = false;
+      _tryStartSlowWave();
+    } else if (!_shieldHoldKey) {
+      slowWaveActive = false;
+    }
   }
 
-  /// Mobile / overlay: set destroy-wave hold.
+  /// Mobile / overlay: set destroy-wave hold (M). Mutually exclusive with N.
   void setDestroyHold(bool holding) {
     _destroyHoldTouch = holding;
-    if (holding) _tryStartDestroyWave();
-    if (!holding && !_destroyHoldKey) destroyWaveActive = false;
+    if (holding) {
+      _lastAbility = 2;
+      _shieldHoldTouch = false;
+      _shieldHoldKey = false;
+      slowWaveActive = false;
+      _tryStartDestroyWave();
+    } else if (!_destroyHoldKey) {
+      destroyWaveActive = false;
+    }
   }
 
   void _tryStartSlowWave() {
@@ -322,6 +362,12 @@ class NavesGame extends FlameGame
       slowWaveActive = false;
       return;
     }
+    // Mutual exclusion: block if destroy is the active choice.
+    if ((_destroyHoldKey || _destroyHoldTouch) && _lastAbility == 2) {
+      slowWaveActive = false;
+      return;
+    }
+    destroyWaveActive = false;
     slowWaveActive = true;
   }
 
@@ -332,6 +378,11 @@ class NavesGame extends FlameGame
       destroyWaveActive = false;
       return;
     }
+    if ((_shieldHoldKey || _shieldHoldTouch) && _lastAbility == 1) {
+      destroyWaveActive = false;
+      return;
+    }
+    slowWaveActive = false;
     destroyWaveActive = true;
   }
 
@@ -391,12 +442,24 @@ class NavesGame extends FlameGame
       return;
     }
 
-    final wantSlow = _shieldHoldKey || _shieldHoldTouch;
-    final wantDestroy = _destroyHoldKey || _destroyHoldTouch;
+    var wantSlow = _shieldHoldKey || _shieldHoldTouch;
+    var wantDestroy = _destroyHoldKey || _destroyHoldTouch;
+
+    // Mutual exclusion N/M: only the last-requested ability may run.
+    if (wantSlow && wantDestroy) {
+      if (_lastAbility == 2) {
+        wantSlow = false;
+        slowWaveActive = false;
+      } else {
+        wantDestroy = false;
+        destroyWaveActive = false;
+        _lastAbility = 1;
+      }
+    }
 
     final inCombat = world.children.whereType<Enemy>().isNotEmpty;
 
-    // --- Mechanic A: slow wave (usable whenever shieldCharge > 0) ---
+    // --- Mechanic A: slow wave — only enemy ships (usable whenever shieldCharge > 0) ---
     if (wantSlow && player.shieldCharge > 0) {
       if (!slowWaveActive) {
         slowWaveActive = true;
@@ -470,15 +533,8 @@ class NavesGame extends FlameGame
   double _ammoRegenAcc = 0;
 
   void _applyDestroyWave() {
+    // Bruster: bomb (M) only removes enemy bullets — never destroys enemy ships.
     final origin = player.position;
-    final enemies = world.children.whereType<Enemy>().toList();
-    for (final e in enemies) {
-      if (!e.isMounted) continue;
-      if (e.position.distanceTo(origin) <= destroyWaveRadius) {
-        e.removeFromParent();
-        onEnemyKilled(e);
-      }
-    }
     final eBullets = world.children.whereType<EnemyBullet>().toList();
     for (final b in eBullets) {
       if (!b.isMounted) continue;
@@ -549,7 +605,7 @@ class NavesGame extends FlameGame
   }
 
   void onPlayerHit() {
-    // Shield absorbs the hit while charge remains: dump charge, cancel N-wave.
+    // Enemy bullet hit: shield absorbs while charge remains (dump charge, cancel N).
     if (_playerReady && player.isMounted && player.shieldCharge > 0) {
       player.shieldCharge = 0;
       slowWaveActive = false;
@@ -566,6 +622,23 @@ class NavesGame extends FlameGame
       return;
     }
 
+    _loseLifeFromHit(downgradeWeapon: false);
+  }
+
+  /// Enemy ship ramming: always -1 life, shieldCharge=0, cancel N, downgrade weapon.
+  void onPlayerShipImpact() {
+    if (_playerReady && player.isMounted) {
+      player.shieldCharge = 0;
+      slowWaveActive = false;
+      player.downgradeWeaponTier();
+    }
+    _loseLifeFromHit(downgradeWeapon: false); // already downgraded above
+  }
+
+  void _loseLifeFromHit({required bool downgradeWeapon}) {
+    if (downgradeWeapon && _playerReady && player.isMounted) {
+      player.downgradeWeaponTier();
+    }
     _lives -= 1;
     _combo = 0;
     _publishHud();
@@ -579,7 +652,7 @@ class NavesGame extends FlameGame
 
     if (_lives <= 0) {
       _triggerGameOver();
-    } else {
+    } else if (_playerReady && player.isMounted) {
       player.respawn();
     }
   }
@@ -819,14 +892,23 @@ class NavesGame extends FlameGame
     final nDown = keysPressed.contains(LogicalKeyboardKey.keyN);
     final mDown = keysPressed.contains(LogicalKeyboardKey.keyM);
     if (nDown && !_shieldHoldKey) {
+      _lastAbility = 1;
       _shieldHoldKey = true;
+      // Mutual exclusion: cancel M when N is pressed.
+      _destroyHoldKey = false;
+      _destroyHoldTouch = false;
+      destroyWaveActive = false;
       _tryStartSlowWave();
     } else if (!nDown) {
       _shieldHoldKey = false;
       if (!_shieldHoldTouch) slowWaveActive = false;
     }
     if (mDown && !_destroyHoldKey) {
+      _lastAbility = 2;
       _destroyHoldKey = true;
+      _shieldHoldKey = false;
+      _shieldHoldTouch = false;
+      slowWaveActive = false;
       _tryStartDestroyWave();
     } else if (!mDown) {
       _destroyHoldKey = false;

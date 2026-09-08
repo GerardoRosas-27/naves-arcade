@@ -222,17 +222,17 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       const SizedBox(height: 8),
                       _infoRow(
                         Icons.shield,
-                        'Botones N/M: escudo lento y onda destructiva',
+                        'N=lento naves · M=limpia balas · no a la vez',
                       ),
                       if (kIsWeb) ...[
                         const SizedBox(height: 8),
                         _infoRow(
                           Icons.keyboard,
-                          'Web: WASD · Espacio · N escudo · M onda',
+                          'Web: WASD · Espacio · N lento · M bomba',
                         ),
                       ],
                       const SizedBox(height: 8),
-                      _infoRow(Icons.star, 'Power-ups: munición + tipo / carga de escudo'),
+                      _infoRow(Icons.star, 'Armas: recarga + sube tier; impacto nave baja tier'),
                     ],
                   ),
                 ),

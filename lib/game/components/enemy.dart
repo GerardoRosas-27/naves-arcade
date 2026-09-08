@@ -63,8 +63,8 @@ class Enemy extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
-    // Mechanic A: enemies inside the slow wave move/fire slower.
-    final scale = game.entityTimeScaleAt(position);
+    // Mechanic A (N): only enemy ships slow inside the wave (bullets unaffected).
+    final scale = game.enemyTimeScale(this);
     final sdt = dt * scale;
     _phase += sdt * 3;
 

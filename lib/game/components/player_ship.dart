@@ -44,8 +44,12 @@ class PlayerShip extends PositionComponent
   /// Finite ammo stock.
   int ammo = ammoStart;
 
-  bool burstMode = false;
-  bool multiShot = false;
+  /// Weapon tier: 0=basic, 1=burst (2 balas), 2=multi (3 balas, más poderoso).
+  /// Solo baja de nivel al perder vida por impacto de nave enemiga.
+  int weaponTier = 0;
+
+  bool get burstMode => weaponTier == 1;
+  bool get multiShot => weaponTier >= 2;
 
   double _invuln = 0;
   double _blink = 0;
@@ -78,8 +82,7 @@ class PlayerShip extends PositionComponent
     position = Vector2(game.playArea.x / 2, game.playArea.y * 0.78);
     shieldCharge = 0;
     ammo = ammoStart;
-    burstMode = false;
-    multiShot = false;
+    weaponTier = 0;
     _invuln = 1.5;
     joystickDelta = Vector2.zero();
     keyboardDelta = Vector2.zero();
@@ -105,22 +108,26 @@ class PlayerShip extends PositionComponent
     return true;
   }
 
-  /// Shield pickup → cumulative charge (aura absorbs one hit while charge > 0).
+  /// Shield pickup → cumulative charge (aura absorbs enemy *bullets* while charge > 0).
   void activateShield() {
     addShieldCharge(shieldPickupGrant);
   }
 
-  /// Weapon pickup → fill ammo fully + set type (persistent until another weapon).
+  /// Weapon pickup → refill ammo + raise tier floor; always equip most powerful owned.
+  /// burst → tier ≥ 1; multi → tier ≥ 2. Never downgrades on pickup.
   void activateBurst() {
-    burstMode = true;
-    multiShot = false;
     ammo = ammoMax;
+    if (weaponTier < 1) weaponTier = 1;
   }
 
   void activateMultiShot() {
-    multiShot = true;
-    burstMode = false;
     ammo = ammoMax;
+    if (weaponTier < 2) weaponTier = 2;
+  }
+
+  /// Ship-impact life loss only: drop one weapon tier (multi→burst→basic).
+  void downgradeWeaponTier() {
+    if (weaponTier > 0) weaponTier -= 1;
   }
 
   /// Brief i-frames after a shielded absorb (avoids multi-hit same frame).
@@ -290,9 +297,11 @@ class PlayerShip extends PositionComponent
 
     if (other is Enemy) {
       other.removeFromParent();
-      game.onPlayerHit();
+      // Ship ramming: always costs a life (no shield absorb).
+      game.onPlayerShipImpact();
     } else if (other is EnemyBullet) {
       other.removeFromParent();
+      // Bullets can still be absorbed by shield charge.
       game.onPlayerHit();
     } else if (other is PowerUp) {
       game.collectPowerUp(other.type);

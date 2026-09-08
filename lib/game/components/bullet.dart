@@ -27,9 +27,8 @@ class Bullet extends PositionComponent
   @override
   void update(double dt) {
     super.update(dt);
-    // Mechanic A: player bullets also slow inside the slow wave.
-    final scale = game.projectileTimeScaleAt(position);
-    position += velocity * dt * scale;
+    // Bruster: N slow wave does not affect player bullets.
+    position += velocity * dt;
     if (position.y < -20 ||
         position.y > game.playArea.y + 20 ||
         position.x < -20 ||
