@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Large mobile artifacts (served from Docker/Railway, not git)
+*.apk
+*.ipa
+/downloads/

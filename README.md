@@ -84,33 +84,33 @@ Demo educativa. Sin secretos ni backends.
 
 ## Descargas móviles (Android / iOS)
 
-En la pantalla de bienvenida, debajo de **¡JUGAR!**, hay botones:
+En la pantalla de bienvenida, debajo de **¡JUGAR!**:
 
 | Botón | Qué hace |
 |-------|----------|
-| **Descargar Android** | Abre la URL directa del APK en GitHub Releases (`url_launcher`) y descarga el archivo. |
-| **Descargar iOS** | Muestra un diálogo en español: iOS necesita App Store / TestFlight / IPA firmado desde un Mac con Xcode. Ofrece enlaces a Releases y a esta sección del README. |
+| **APK Android** | Descarga `naves-arcade.apk` (en web: same-origin `/downloads/` con `<a download>`; nativo: GitHub Releases). |
+| **ZIP Android** | Descarga `naves-arcade-android.zip` (APK + README de instalación). |
+| **ZIP iOS** | No hay IPA firmado. El ZIP solo trae instrucciones; el diálogo lo explica. |
 
-Las URLs están centralizadas en `lib/config/download_urls.dart` (fácil de actualizar tras un nuevo release).
+Ayuda bajo los botones Android: *Si se pausa: abre el link en Chrome → Descargas → permitir instalar apps desconocidas*.
+
+URLs en `lib/config/download_urls.dart`. En Railway, Express sirve:
+
+- `/downloads/naves-arcade.apk`
+- `/downloads/naves-arcade-android.zip`
+- `/downloads/naves-arcade-ios.zip`
+
+con `Content-Disposition: attachment`. El APK/ZIP se obtienen en el **Docker build** desde GitHub Releases (no se committean binarios ~66MB).
 
 ### Android APK
 
-- Build: `flutter build apk --release` (requiere Android SDK + JDK).
-- Publicación: asset en GitHub Release (p. ej. tag `v1.0.1-mobile`), archivo `naves-arcade.apk`.
-- URL típica: `https://github.com/GerardoRosas-27/naves-arcade/releases/download/<tag>/naves-arcade.apk`
-- En dispositivos Android hay que permitir instalar desde el navegador / fuentes desconocidas.
+- Build: `flutter build apk --release` (Android SDK + JDK).
+- Release asset: tag `v1.0.1-mobile`, `naves-arcade.apk`.
+- Mirror Railway: curl en imagen Docker → `/downloads/`.
 
 ### iOS (limitaciones)
 
-Este entorno de build (Linux / box) **no tiene Mac ni firma de Apple**, así que **no** se publica un IPA instalable. Un IPA sin firmar no se puede instalar en iPhones normales.
-
-Para iOS hace falta:
-
-1. Un Mac con Xcode
-2. Cuenta Apple Developer (o TestFlight interno)
-3. `flutter build ipa` + firma / distribución App Store o ad-hoc
-
-Hasta entonces, el botón **Descargar iOS** explica esto y enlaza a Releases / README.
+Sin Mac/firma Apple **no** hay IPA instalable. El ZIP iOS es solo texto de instrucciones.
 
 
 ## Desplegar en Railway (web)
@@ -119,7 +119,7 @@ Despliegue **solo web** con Docker. Las carpetas `android/`, `ios/` y escritorio
 
 1. Entra a [Railway](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
 2. Autoriza GitHub si hace falta y selecciona **`GerardoRosas-27/naves-arcade`**.
-3. Railway detecta el `Dockerfile` (o `railway.toml`) y construye Flutter web + sirve estáticos.
+3. Railway detecta el `Dockerfile` (o `railway.toml`), construye Flutter web y sirve con Express (estáticos + APK/ZIP en `/downloads/`).
 4. Cuando termine el deploy, abre la URL pública del servicio (dominio `*.up.railway.app` o el que configures).
 
 **Base href:** en Railway se usa `--base-href /` (raíz del dominio). Si publicas en GitHub Pages bajo `/naves-arcade/`, usa `--base-href /naves-arcade/` en ese flujo; no mezclar ambos builds.

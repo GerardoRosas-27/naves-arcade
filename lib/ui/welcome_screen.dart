@@ -2,9 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../audio/game_audio.dart';
+import '../config/browser_download.dart';
 import '../config/download_urls.dart';
 import 'game_page.dart';
 
@@ -46,7 +46,6 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (!kIsWeb) {
       HapticFeedback.mediumImpact();
     }
-    // User gesture unlocks web autoplay; start BGM playlist here.
     await GameAudio.instance.startPlaylist();
     if (!mounted) return;
     await Navigator.of(context).push(
@@ -56,22 +55,32 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     if (mounted) await _loadHighScore();
   }
 
-  Future<void> _downloadAndroid() async {
-    final uri = Uri.parse(DownloadUrls.androidApkUrl);
-    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _download(String url, String filename, {String? failHint}) async {
+    final ok = await triggerBrowserDownload(url, filename);
     if (!ok && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'No se pudo abrir la descarga. Revisa Releases en GitHub.',
+            failHint ??
+                'No se pudo abrir la descarga. Revisa Releases en GitHub.',
           ),
         ),
       );
     }
   }
 
-  Future<void> _downloadIos() async {
-    if (!mounted) return;
+  Future<void> _downloadAndroidApk() => _download(
+        DownloadUrls.androidApkUrl,
+        'naves-arcade.apk',
+      );
+
+  Future<void> _downloadAndroidZip() => _download(
+        DownloadUrls.androidZipUrl,
+        'naves-arcade-android.zip',
+      );
+
+  Future<void> _downloadIosZip() async {
+    // No signed IPA — ZIP is instructions only; still offer download + dialog.
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -81,11 +90,10 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           style: TextStyle(color: Color(0xFFE8F7FF)),
         ),
         content: const Text(
-          'iOS requiere App Store, TestFlight o un IPA firmado '
-          'generado en un Mac con Xcode. Este entorno no puede '
-          'producir un IPA instalable.\n\n'
-          'Puedes abrir la página de Releases o el README para '
-          'seguir el estado de builds móviles.',
+          'Todavía no hay un IPA firmado instalable. '
+          'El ZIP solo incluye instrucciones de instalación / requisitos '
+          '(Mac + Xcode + firma Apple).\n\n'
+          'Puedes descargar el ZIP de instrucciones o abrir Releases.',
           style: TextStyle(color: Color(0xFFB0C4DE)),
         ),
         actions: [
@@ -96,18 +104,22 @@ class _WelcomeScreenState extends State<WelcomeScreen>
           TextButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              final uri = Uri.parse(DownloadUrls.releasesPageUrl);
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              await _download(
+                DownloadUrls.iosZipUrl,
+                'naves-arcade-ios.zip',
+              );
             },
-            child: const Text('Ver Releases'),
+            child: const Text('Descargar ZIP'),
           ),
           TextButton(
             onPressed: () async {
               Navigator.of(ctx).pop();
-              final uri = Uri.parse(DownloadUrls.iosInfoUrl);
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
+              await _download(
+                DownloadUrls.releasesPageUrl,
+                'releases.html',
+              );
             },
-            child: const Text('Ver README'),
+            child: const Text('Ver Releases'),
           ),
         ],
       ),
@@ -255,59 +267,63 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 Row(
                   children: [
                     Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: OutlinedButton.icon(
-                          onPressed: _downloadAndroid,
-                          icon: const Icon(Icons.android, size: 20),
-                          label: const Text(
-                            'Descargar Android',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFA5D6A7),
-                            side: BorderSide(
-                              color: const Color(0xFF66BB6A).withValues(alpha: 0.7),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
+                      child: _outlineBtn(
+                        icon: Icons.android,
+                        label: 'APK Android',
+                        color: const Color(0xFFA5D6A7),
+                        border: const Color(0xFF66BB6A),
+                        onPressed: _downloadAndroidApk,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: SizedBox(
-                        height: 48,
-                        child: OutlinedButton.icon(
-                          onPressed: _downloadIos,
-                          icon: const Icon(Icons.apple, size: 20),
-                          label: const Text(
-                            'Descargar iOS',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: const Color(0xFFB0BEC5),
-                            side: BorderSide(
-                              color: Colors.white.withValues(alpha: 0.35),
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                        ),
+                      child: _outlineBtn(
+                        icon: Icons.folder_zip,
+                        label: 'ZIP Android',
+                        color: const Color(0xFFA5D6A7),
+                        border: const Color(0xFF66BB6A),
+                        onPressed: _downloadAndroidZip,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 44,
+                  child: OutlinedButton.icon(
+                    onPressed: _downloadIosZip,
+                    icon: const Icon(Icons.apple, size: 20),
+                    label: const Text(
+                      'ZIP iOS (instrucciones)',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB0BEC5),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.35),
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Si se pausa: abre el link en Chrome → Descargas → '
+                  'permitir instalar apps desconocidas',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    height: 1.35,
+                    color: Colors.white.withValues(alpha: 0.55),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Text(
                   'Destruye naves enemigas · Evita colisiones',
                   style: TextStyle(
@@ -318,6 +334,36 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 const Spacer(flex: 2),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _outlineBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required Color border,
+    required VoidCallback onPressed,
+  }) {
+    return SizedBox(
+      height: 48,
+      child: OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon, size: 20),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          side: BorderSide(color: border.withValues(alpha: 0.7)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
           ),
         ),
       ),
