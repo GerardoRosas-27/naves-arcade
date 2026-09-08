@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 
 import 'package:flame/components.dart';
@@ -7,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../audio/game_audio.dart';
 import '../ui/game_over_overlay.dart';
 import '../ui/hud_overlay.dart';
 import 'components/bullet.dart';
@@ -210,6 +212,12 @@ class NavesGame extends FlameGame
     }
 
     world.addAll(bullets);
+    unawaited(
+      GameAudio.instance.playShoot(
+        multiShot: player.multiShot,
+        burstMode: player.burstMode,
+      ),
+    );
   }
 
   void onEnemyKilled(Enemy enemy) {
@@ -277,6 +285,7 @@ class NavesGame extends FlameGame
 
   Future<void> _triggerGameOver() async {
     isGameOver = true;
+    await GameAudio.instance.pause();
     await _saveHighScore();
     _publishHud();
     overlays.add(GameOverOverlay.id);
@@ -299,11 +308,13 @@ class NavesGame extends FlameGame
   void pauseGame() {
     isPaused = true;
     pauseEngine();
+    unawaited(GameAudio.instance.pause());
   }
 
   void resumeGame() {
     isPaused = false;
     resumeEngine();
+    unawaited(GameAudio.instance.resume());
   }
 
   void restart() {
@@ -333,6 +344,7 @@ class NavesGame extends FlameGame
       overlays.add(HudOverlay.id);
     }
     resumeEngine();
+    unawaited(GameAudio.instance.resume());
     _publishHud();
   }
 

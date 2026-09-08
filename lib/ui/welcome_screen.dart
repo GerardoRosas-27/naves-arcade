@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../audio/game_audio.dart';
 import 'game_page.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -39,15 +40,18 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  void _startGame() {
+  Future<void> _startGame() async {
     if (!kIsWeb) {
       HapticFeedback.mediumImpact();
     }
-    Navigator.of(context)
-        .push(
-          MaterialPageRoute(builder: (_) => const GamePage()),
-        )
-        .then((_) => _loadHighScore());
+    // User gesture unlocks web autoplay; start BGM playlist here.
+    await GameAudio.instance.startPlaylist();
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const GamePage()),
+    );
+    await GameAudio.instance.stop();
+    if (mounted) await _loadHighScore();
   }
 
   @override
