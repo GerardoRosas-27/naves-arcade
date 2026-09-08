@@ -66,9 +66,12 @@ class PowerUp extends PositionComponent
   void update(double dt) {
     super.update(dt);
     _spin += dt * 4;
-    position.y += 60 * dt;
-    position.x += sin(_spin) * 20 * dt;
-    if (position.y > game.playArea.y + 30) {
+    // Drift along enemy travel; sway on cross axis.
+    position += game.enemyTravelDir * (60 * dt);
+    position += game.crossDir * (sin(_spin) * 20 * dt);
+    if (game.isLandscape) {
+      if (position.x < -30) removeFromParent();
+    } else if (position.y > game.playArea.y + 30) {
       removeFromParent();
     }
   }

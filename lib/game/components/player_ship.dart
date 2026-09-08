@@ -74,12 +74,12 @@ class PlayerShip extends PositionComponent
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    position = Vector2(game.playArea.x / 2, game.playArea.y * 0.78);
+    position = game.playerHome(depth: 0.22);
     add(CircleHitbox(radius: 14, isSolid: true));
   }
 
   void resetState() {
-    position = Vector2(game.playArea.x / 2, game.playArea.y * 0.78);
+    position = game.playerHome(depth: 0.22);
     shieldCharge = 0;
     ammo = ammoStart;
     weaponTier = 0;
@@ -90,7 +90,7 @@ class PlayerShip extends PositionComponent
   }
 
   void respawn() {
-    position = Vector2(game.playArea.x / 2, game.playArea.y * 0.82);
+    position = game.playerHome(depth: 0.18);
     _invuln = 2.0;
   }
 
@@ -155,8 +155,13 @@ class PlayerShip extends PositionComponent
       }
     }
 
-    position.x = position.x.clamp(20, game.playArea.x - 20);
-    position.y = position.y.clamp(60, game.playArea.y - 40);
+    if (game.isLandscape) {
+      position.x = position.x.clamp(40, game.playArea.x - 60);
+      position.y = position.y.clamp(20, game.playArea.y - 20);
+    } else {
+      position.x = position.x.clamp(20, game.playArea.x - 20);
+      position.y = position.y.clamp(60, game.playArea.y - 40);
+    }
   }
 
   @override
@@ -236,6 +241,14 @@ class PlayerShip extends PositionComponent
       );
     }
 
+    // Ship body: points up (Parado) or right (Acostado).
+    canvas.save();
+    canvas.translate(cx, cy);
+    if (game.isLandscape) {
+      canvas.rotate(1.57079632679); // +90° → nose toward +X
+    }
+    canvas.translate(-cx, -cy);
+
     // Engine glow
     final glow = Paint()
       ..color = const Color(0x8800E5FF)
@@ -285,6 +298,7 @@ class PlayerShip extends PositionComponent
         Paint()..color = accent,
       );
     }
+    canvas.restore();
   }
 
   @override

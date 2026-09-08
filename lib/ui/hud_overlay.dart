@@ -98,7 +98,7 @@ class HudOverlay extends StatelessWidget {
           // Right-edge ability holds — raised so thumbs clear the fire zone.
           Positioned(
             right: 12,
-            bottom: 112,
+            bottom: game.isLandscape ? 24 : 112,
             child: ValueListenableBuilder<GameHudState>(
               valueListenable: game.hud,
               builder: (context, state, _) {

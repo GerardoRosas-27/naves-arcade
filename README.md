@@ -7,6 +7,7 @@ Motor: **Flame** (`HasCollisionDetection`, componentes procedurales, ~60 FPS).
 ## Características
 
 - Nave del jugador con **joystick virtual** y **arrastre táctil**
+- Modo **Parado** (vertical) / **Acostado** (horizontal) con elección explícita y persistencia
 - Disparo por **toque / mantener** en el lado derecho
 - Enemigos (scout, zig-zag, tanque) con dificultad progresiva
 - Colisiones: balas ↔ enemigos, enemigos ↔ jugador
@@ -40,6 +41,7 @@ flutter build web          # build de producción web
 | Escudo lento (A) | Mantén **N** — solo ralentiza naves enemigas (rápidas: slow drástico). Excluye M. |
 | Bomba limpia-balas (B) | Mantén **M** — solo elimina balas enemigas en radio (no naves). Excluye N. |
 | Pausar | Botón ⏸ en el HUD |
+| Modo | **Parado** (vertical) o **Acostado** (horizontal) — bienvenida y pausa |
 | Mover (web) | **WASD** (A izquierda, D derecha, W arriba, S abajo) |
 | Disparar (web) | **Espacio** (mantener) |
 | Escudo / Onda (web) | Mantén **N** / **M** |

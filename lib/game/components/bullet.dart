@@ -9,14 +9,16 @@ class Bullet extends PositionComponent
   Bullet({
     required Vector2 position,
     required this.velocity,
+    this.landscape = false,
   }) : super(
           position: position,
-          size: Vector2(4, 14),
+          size: landscape ? Vector2(14, 4) : Vector2(4, 14),
           anchor: Anchor.center,
           priority: 8,
         );
 
   final Vector2 velocity;
+  final bool landscape;
 
   @override
   Future<void> onLoad() async {
@@ -43,14 +45,17 @@ class Bullet extends PositionComponent
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(2)),
       Paint()
-        ..shader = const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFFFFF), Color(0xFF00E5FF)],
+        ..shader = LinearGradient(
+          begin: landscape ? Alignment.centerLeft : Alignment.topCenter,
+          end: landscape ? Alignment.centerRight : Alignment.bottomCenter,
+          colors: const [Color(0xFFFFFFFF), Color(0xFF00E5FF)],
         ).createShader(rect),
     );
+    final tip = landscape
+        ? Offset(size.x, size.y / 2)
+        : Offset(size.x / 2, 0);
     canvas.drawCircle(
-      Offset(size.x / 2, 0),
+      tip,
       4,
       Paint()
         ..color = const Color(0x6600E5FF)

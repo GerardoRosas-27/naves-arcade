@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'config/play_mode.dart';
 import 'ui/welcome_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Permitir ambas; luego se bloquea al modo elegido (Parado / Acostado).
+  await PlayModePrefs.unlockAllOrientations();
+  final saved = await PlayModePrefs.load();
+  await PlayModePrefs.applyOrientation(saved);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   runApp(const NavesArcadeApp());
 }

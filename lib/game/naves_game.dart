@@ -10,6 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/game_audio.dart';
+import '../config/play_mode.dart';
 import '../audio/music_director.dart';
 import '../ui/game_over_overlay.dart';
 import '../ui/hud_overlay.dart';
@@ -89,8 +90,13 @@ class NavesGame extends FlameGame
         MultiTouchDragDetector,
         TapCallbacks,
         KeyboardEvents {
-  static const double worldWidth = 400;
-  static const double worldHeight = 720;
+  /// Lado corto / largo del playfield fijo (cámara Flame).
+  static const double shortSide = 400;
+  static const double longSide = 720;
+
+  /// Compat: dimensiones del modo retrato (Parado).
+  static const double worldWidth = shortSide;
+  static const double worldHeight = longSide;
 
   /// Hard caps to keep FPS stable across section transitions / long sessions.
   static const int maxPlayerBullets = 48;
@@ -129,18 +135,49 @@ class NavesGame extends FlameGame
   /// Ammo drained per second while holding the destructive wave (~5s at full).
   static const double destroyWaveAmmoPerSec = 20;
 
-  NavesGame({this.onRequestRestart})
-      : super(
+  NavesGame({
+    this.onRequestRestart,
+    this.playMode = PlayMode.parado,
+  }) : super(
           camera: CameraComponent.withFixedResolution(
-            width: worldWidth,
-            height: worldHeight,
+            width: playMode.isLandscape ? longSide : shortSide,
+            height: playMode.isLandscape ? shortSide : longSide,
           ),
         );
 
   /// When set, Reiniciar tears down this Flame session and creates a fresh one.
   final VoidCallback? onRequestRestart;
 
-  Vector2 get playArea => Vector2(worldWidth, worldHeight);
+  /// Eje de juego elegido (Parado / Acostado).
+  final PlayMode playMode;
+
+  bool get isLandscape => playMode.isLandscape;
+
+  double get fieldWidth => isLandscape ? longSide : shortSide;
+  double get fieldHeight => isLandscape ? shortSide : longSide;
+
+  Vector2 get playArea => Vector2(fieldWidth, fieldHeight);
+
+  /// Dirección en que avanzan los enemigos (y balas hostiles base).
+  Vector2 get enemyTravelDir =>
+      isLandscape ? Vector2(-1, 0) : Vector2(0, 1);
+
+  /// Dirección de las balas del jugador.
+  Vector2 get playerFireDir =>
+      isLandscape ? Vector2(1, 0) : Vector2(0, -1);
+
+  /// Eje transversal (zig / abanico).
+  Vector2 get crossDir =>
+      isLandscape ? Vector2(0, 1) : Vector2(1, 0);
+
+  /// Posición inicial / respawn del jugador.
+  Vector2 playerHome({double depth = 0.22}) {
+    if (isLandscape) {
+      return Vector2(fieldWidth * depth, fieldHeight * 0.5);
+    }
+    // depth 0.22 → y≈0.78; depth 0.18 → y≈0.82 (respawn).
+    return Vector2(fieldWidth * 0.5, fieldHeight * (1.0 - depth));
+  }
 
   final hud = ValueNotifier(const GameHudState());
   final _rng = Random();
@@ -557,19 +594,48 @@ class NavesGame extends FlameGame
     final origin = player.position.clone();
     final bullets = <Bullet>[];
 
+    final fwd = playerFireDir;
+    final cross = crossDir;
+    final muzzle = fwd * 24;
     if (player.multiShot) {
       bullets.addAll([
-        Bullet(position: origin + Vector2(-14, -20), velocity: Vector2(-40, -420)),
-        Bullet(position: origin + Vector2(0, -24), velocity: Vector2(0, -480)),
-        Bullet(position: origin + Vector2(14, -20), velocity: Vector2(40, -420)),
+        Bullet(
+          position: origin + muzzle + cross * -14 + fwd * -4,
+          velocity: fwd * 420 + cross * -40,
+          landscape: isLandscape,
+        ),
+        Bullet(
+          position: origin + muzzle,
+          velocity: fwd * 480,
+          landscape: isLandscape,
+        ),
+        Bullet(
+          position: origin + muzzle + cross * 14 + fwd * -4,
+          velocity: fwd * 420 + cross * 40,
+          landscape: isLandscape,
+        ),
       ]);
     } else if (player.burstMode) {
       bullets.addAll([
-        Bullet(position: origin + Vector2(-6, -22), velocity: Vector2(0, -520)),
-        Bullet(position: origin + Vector2(6, -18), velocity: Vector2(0, -480)),
+        Bullet(
+          position: origin + muzzle + cross * -6,
+          velocity: fwd * 520,
+          landscape: isLandscape,
+        ),
+        Bullet(
+          position: origin + muzzle * 0.75 + cross * 6,
+          velocity: fwd * 480,
+          landscape: isLandscape,
+        ),
       ]);
     } else {
-      bullets.add(Bullet(position: origin + Vector2(0, -24), velocity: Vector2(0, -480)));
+      bullets.add(
+        Bullet(
+          position: origin + muzzle,
+          velocity: fwd * 480,
+          landscape: isLandscape,
+        ),
+      );
     }
 
     world.addAll(bullets);
@@ -935,7 +1001,8 @@ class NavesGame extends FlameGame
   void onDragStart(int pointerId, DragStartInfo info) {
     final screen = info.eventPosition.widget;
     final size = canvasSize;
-    if (screen.x < size.x * 0.55) {
+    final moveFrac = isLandscape ? 0.42 : 0.55;
+    if (screen.x < size.x * moveFrac) {
       _movePointer = pointerId;
       joystick.onTouchStart(screen);
       player.dragTarget = _screenToWorld(screen);
@@ -992,7 +1059,8 @@ class NavesGame extends FlameGame
   @override
   void onTapDown(TapDownEvent event) {
     final screen = event.canvasPosition;
-    if (screen.x >= canvasSize.x * 0.55) {
+    final moveFrac = isLandscape ? 0.42 : 0.55;
+    if (screen.x >= canvasSize.x * moveFrac) {
       _shooting = true;
     } else {
       player.dragTarget = _screenToWorld(screen);

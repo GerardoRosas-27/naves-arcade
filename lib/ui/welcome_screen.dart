@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/game_audio.dart';
+import '../config/play_mode.dart';
 import '../config/browser_download.dart';
 import '../config/download_urls.dart';
 import 'game_page.dart';
@@ -18,6 +19,7 @@ class WelcomeScreen extends StatefulWidget {
 class _WelcomeScreenState extends State<WelcomeScreen>
     with SingleTickerProviderStateMixin {
   int _highScore = 0;
+  PlayMode _playMode = PlayMode.parado;
   late final AnimationController _pulse;
 
   @override
@@ -27,13 +29,33 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     )..repeat(reverse: true);
-    _loadHighScore();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final mode = PlayMode.fromPrefs(prefs.getString(PlayModePrefs.key));
+    if (!mounted) return;
+    setState(() {
+      _highScore = prefs.getInt('high_score') ?? 0;
+      _playMode = mode;
+    });
+    await PlayModePrefs.applyOrientation(mode);
   }
 
   Future<void> _loadHighScore() async {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() => _highScore = prefs.getInt('high_score') ?? 0);
+  }
+
+  Future<void> _selectMode(PlayMode mode) async {
+    if (_playMode == mode) return;
+    setState(() => _playMode = mode);
+    await PlayModePrefs.save(mode);
+    await PlayModePrefs.applyOrientation(mode);
+    if (!mounted) return;
+    HapticFeedback.selectionClick();
   }
 
   @override
@@ -49,8 +71,12 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     await GameAudio.instance.startPlaylist();
     if (!mounted) return;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const GamePage()),
+      MaterialPageRoute(
+        builder: (_) => GamePage(playMode: _playMode),
+      ),
     );
+    // Al volver, reaplicar orientación del preferido.
+    await PlayModePrefs.applyOrientation(_playMode);
     await GameAudio.instance.stop();
     if (mounted) await _loadHighScore();
   }
@@ -245,6 +271,37 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                     color: Color(0xFFFFD54F),
                   ),
                 ),
+                const SizedBox(height: 18),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Elige cómo jugar',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _modeCard(
+                        mode: PlayMode.parado,
+                        icon: Icons.stay_current_portrait,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _modeCard(
+                        mode: PlayMode.acostado,
+                        icon: Icons.stay_current_landscape,
+                      ),
+                    ),
+                  ],
+                ),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
@@ -339,6 +396,58 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 const Spacer(flex: 2),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+
+  Widget _modeCard({required PlayMode mode, required IconData icon}) {
+    final selected = _playMode == mode;
+    return Material(
+      color: selected
+          ? const Color(0xFF00BCD4)
+          : Colors.white.withValues(alpha: 0.06),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => _selectMode(mode),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 10),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                size: 28,
+                color: selected
+                    ? const Color(0xFF050816)
+                    : const Color(0xFF00E5FF),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                mode.label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  color: selected
+                      ? const Color(0xFF050816)
+                      : const Color(0xFFE8F7FF),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                mode.subtitle,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  height: 1.25,
+                  color: selected
+                      ? const Color(0xFF05303A)
+                      : Colors.white54,
+                ),
+              ),
+            ],
           ),
         ),
       ),

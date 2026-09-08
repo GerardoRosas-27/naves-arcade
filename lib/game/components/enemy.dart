@@ -68,27 +68,35 @@ class Enemy extends PositionComponent
     final sdt = dt * scale;
     _phase += sdt * 3;
 
-    switch (kind) {
-      case EnemyKind.scout:
-        position.y += speed * sdt;
-      case EnemyKind.tank:
-        position.y += speed * 0.7 * sdt;
-      case EnemyKind.zig:
-        position.y += speed * sdt;
-        position.x += sin(_phase) * 90 * sdt;
+    final forward = game.enemyTravelDir;
+    final cross = game.crossDir;
+    final speedMul = kind == EnemyKind.tank ? 0.7 : 1.0;
+    position += forward * (speed * speedMul * sdt);
+    if (kind == EnemyKind.zig) {
+      position += cross * (sin(_phase) * 90 * sdt);
     }
 
     _updateFire(sdt);
 
-    if (position.y > game.playArea.y + 40) {
-      removeFromParent();
+    // Off-screen past the player side.
+    if (game.isLandscape) {
+      if (position.x < -40) removeFromParent();
+    } else {
+      if (position.y > game.playArea.y + 40) removeFromParent();
     }
   }
 
   void _updateFire(double dt) {
     if (game.isPaused || game.isGameOver) return;
-    // Only shoot while on-screen-ish
-    if (position.y < 10 || position.y > game.playArea.y * 0.72) return;
+    // Only shoot while on-screen-ish (before reaching deep into player zone).
+    if (game.isLandscape) {
+      if (position.x > game.playArea.x - 10 ||
+          position.x < game.playArea.x * 0.28) {
+        return;
+      }
+    } else {
+      if (position.y < 10 || position.y > game.playArea.y * 0.72) return;
+    }
 
     final cue = MusicDirector.instance.cue;
     firePattern = cue.firePattern;
@@ -100,11 +108,14 @@ class Enemy extends PositionComponent
     _fire(cue);
     // Faster fire when energy is high; slower (beat-gated) when low.
     final base = kind == EnemyKind.tank ? 1.1 : 1.45;
-    _fireCooldown = base * (1.35 - cue.energy * 0.7) * (0.85 + _rng.nextDouble() * 0.3);
+    _fireCooldown =
+        base * (1.35 - cue.energy * 0.7) * (0.85 + _rng.nextDouble() * 0.3);
   }
 
   void _fire(MusicCue cue) {
-    final origin = position + Vector2(0, size.y * 0.35);
+    final forward = game.enemyTravelDir;
+    final cross = game.crossDir;
+    final origin = position + forward * (size.y * 0.35);
     final bullets = <EnemyBullet>[];
     final bulletSpeed = 160 + cue.energy * 90;
 
@@ -113,7 +124,7 @@ class Enemy extends PositionComponent
         bullets.add(
           EnemyBullet(
             position: origin.clone(),
-            velocity: Vector2(0, bulletSpeed),
+            velocity: forward * bulletSpeed,
             tint: neonColor,
           ),
         );
@@ -123,13 +134,12 @@ class Enemy extends PositionComponent
         for (var i = 0; i < count; i++) {
           final t = count == 1 ? 0.0 : i / (count - 1);
           final angle = -spread / 2 + t * spread;
-          // Downward fan (angle 0 = +Y)
-          final vx = sin(angle) * bulletSpeed;
-          final vy = cos(angle) * bulletSpeed;
+          // Fan around travel axis (angle 0 = forward).
+          final dir = forward * cos(angle) + cross * sin(angle);
           bullets.add(
             EnemyBullet(
               position: origin.clone(),
-              velocity: Vector2(vx, vy),
+              velocity: dir * bulletSpeed,
               tint: neonColor,
             ),
           );
@@ -139,14 +149,13 @@ class Enemy extends PositionComponent
         final baseAngle = _phase;
         for (var i = 0; i < arms; i++) {
           final angle = baseAngle + i * (2 * pi / arms);
-          // Start mostly downward with sideways component
-          final vx = cos(angle) * bulletSpeed * 0.55;
-          final vy = bulletSpeed * 0.85 + sin(angle).abs() * 40;
+          final vxCross = cos(angle) * bulletSpeed * 0.55;
+          final vFwd = bulletSpeed * 0.85 + sin(angle).abs() * 40;
           final spin = (i.isEven ? 1 : -1) * (2.2 + cue.energy * 2.5);
           bullets.add(
             EnemyBullet(
               position: origin.clone(),
-              velocity: Vector2(vx, vy),
+              velocity: forward * vFwd + cross * vxCross,
               spin: spin,
               tint: neonColor,
             ),
@@ -162,6 +171,14 @@ class Enemy extends PositionComponent
     final cx = size.x / 2;
     final cy = size.y / 2;
     final color = neonColor;
+
+    canvas.save();
+    canvas.translate(cx, cy);
+    if (game.isLandscape) {
+      // Nose toward -X (toward player on the left).
+      canvas.rotate(-1.57079632679);
+    }
+    canvas.translate(-cx, -cy);
 
     canvas.drawCircle(
       Offset(cx, cy),
@@ -197,6 +214,7 @@ class Enemy extends PositionComponent
         ..strokeWidth = 1.5
         ..color = const Color(0xFFFFFFFF),
     );
+    canvas.restore();
   }
 
   @override

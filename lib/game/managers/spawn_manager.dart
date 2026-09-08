@@ -35,8 +35,6 @@ class SpawnManager extends Component with HasGameReference<NavesGame> {
   }
 
   void _spawn(MusicCue cue) {
-    final w = game.playArea.x;
-    final x = 30 + _rng.nextDouble() * (w - 60);
     final roll = _rng.nextDouble();
 
     EnemyKind kind;
@@ -56,18 +54,40 @@ class SpawnManager extends Component with HasGameReference<NavesGame> {
     }
 
     final speed = (baseSpeed + _rng.nextDouble() * 20) * cue.speedScale;
-
     final count = _rng.nextDouble() < cue.waveChance ? 3 : 1;
-    for (var i = 0; i < count; i++) {
-      final ox = (i - (count - 1) / 2) * 40;
-      game.world.add(
-        Enemy(
-          position: Vector2((x + ox).clamp(24, w - 24), -30.0 - i * 28),
-          kind: kind,
-          speed: speed,
-          firePattern: cue.firePattern,
-        ),
-      );
+
+    if (game.isLandscape) {
+      // Spawn on the right edge; stagger along Y (cross axis).
+      final h = game.playArea.y;
+      final y = 30 + _rng.nextDouble() * (h - 60);
+      for (var i = 0; i < count; i++) {
+        final oy = (i - (count - 1) / 2) * 40;
+        game.world.add(
+          Enemy(
+            position: Vector2(
+              game.playArea.x + 30.0 + i * 28,
+              (y + oy).clamp(24, h - 24),
+            ),
+            kind: kind,
+            speed: speed,
+            firePattern: cue.firePattern,
+          ),
+        );
+      }
+    } else {
+      final w = game.playArea.x;
+      final x = 30 + _rng.nextDouble() * (w - 60);
+      for (var i = 0; i < count; i++) {
+        final ox = (i - (count - 1) / 2) * 40;
+        game.world.add(
+          Enemy(
+            position: Vector2((x + ox).clamp(24, w - 24), -30.0 - i * 28),
+            kind: kind,
+            speed: speed,
+            firePattern: cue.firePattern,
+          ),
+        );
+      }
     }
   }
 }

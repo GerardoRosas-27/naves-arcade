@@ -23,11 +23,13 @@ class Starfield extends Component with HasGameReference<NavesGame> {
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    final w = game.playArea.x;
+    final h = game.playArea.y;
     for (var i = 0; i < 80; i++) {
       _stars.add(
         _Star(
-          _rng.nextDouble() * 400,
-          _rng.nextDouble() * 720,
+          _rng.nextDouble() * w,
+          _rng.nextDouble() * h,
           20 + _rng.nextDouble() * 90,
           0.6 + _rng.nextDouble() * 2.2,
           0.3 + _rng.nextDouble() * 0.7,
@@ -41,11 +43,21 @@ class Starfield extends Component with HasGameReference<NavesGame> {
     super.update(dt);
     final h = game.playArea.y;
     final w = game.playArea.x;
+    final landscape = game.isLandscape;
     for (final s in _stars) {
-      s.y += s.speed * scrollScale * dt;
-      if (s.y > h) {
-        s.y = -2;
-        s.x = _rng.nextDouble() * w;
+      if (landscape) {
+        // Scroll toward the left (enemies come from the right).
+        s.x -= s.speed * scrollScale * dt;
+        if (s.x < -2) {
+          s.x = w + 2;
+          s.y = _rng.nextDouble() * h;
+        }
+      } else {
+        s.y += s.speed * scrollScale * dt;
+        if (s.y > h) {
+          s.y = -2;
+          s.x = _rng.nextDouble() * w;
+        }
       }
     }
   }

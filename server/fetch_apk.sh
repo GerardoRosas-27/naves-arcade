@@ -2,17 +2,17 @@
 set -eu
 mkdir -p downloads
 NOTES="$(dirname "$0")/install_notes"
-TAGGED_NEW="https://github.com/GerardoRosas-27/naves-arcade/releases/download/v1.0.5-mobile/naves-arcade.apk"
+TAGGED_NEW="https://github.com/GerardoRosas-27/naves-arcade/releases/download/v1.0.6-mobile/naves-arcade.apk"
 LATEST="https://github.com/GerardoRosas-27/naves-arcade/releases/latest/download/naves-arcade.apk"
-TAGGED_OLD="https://github.com/GerardoRosas-27/naves-arcade/releases/download/v1.0.4-mobile/naves-arcade.apk"
-TAGGED_OLDER="https://github.com/GerardoRosas-27/naves-arcade/releases/download/v1.0.3-mobile/naves-arcade.apk"
+TAGGED_OLD="https://github.com/GerardoRosas-27/naves-arcade/releases/download/v1.0.5-mobile/naves-arcade.apk"
+TAGGED_OLDER="https://github.com/GerardoRosas-27/naves-arcade/releases/download/v1.0.4-mobile/naves-arcade.apk"
 echo Fetching_APK
 if ! curl -fL --retry 3 --retry-delay 2 -o downloads/naves-arcade.apk "$TAGGED_NEW"; then
   echo fallback_latest
   if ! curl -fL --retry 3 --retry-delay 2 -o downloads/naves-arcade.apk "$LATEST"; then
-    echo fallback_v1_0_4
+    echo fallback_v1_0_5
     if ! curl -fL --retry 3 --retry-delay 2 -o downloads/naves-arcade.apk "$TAGGED_OLD"; then
-      echo fallback_v1_0_3
+      echo fallback_v1_0_4
       curl -fL --retry 3 --retry-delay 2 -o downloads/naves-arcade.apk "$TAGGED_OLDER"
     fi
   fi
