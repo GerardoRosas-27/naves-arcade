@@ -6,7 +6,7 @@ class DownloadUrls {
   DownloadUrls._();
 
   /// Tag del release que contiene el APK (fallback / nativo).
-  static const String releaseTag = 'v1.0.3-mobile';
+  static const String releaseTag = 'v1.0.4-mobile';
 
   /// Página de Releases del repositorio.
   static const String releasesPageUrl =

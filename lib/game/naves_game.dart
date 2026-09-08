@@ -107,7 +107,12 @@ class NavesGame extends FlameGame
   static const double slowFactor = 0.32;
 
   /// Passive shield regen per second while enemies are on screen and wave off.
+  /// Feel: 0.4/s of 10 max → ~25s empty→full (~4%/s).
   static const double shieldPassiveRegen = 0.4;
+
+  /// Passive ammo regen per second while enemies are on screen and destroy-wave off.
+  /// Feel: 10/s of 100 max → ~10s empty→full (~10%/s) — clearly faster than shield.
+  static const double ammoPassiveRegen = 10;
 
   /// Destructive wave radius (world units).
   static const double destroyWaveRadius = 100;
@@ -389,10 +394,13 @@ class NavesGame extends FlameGame
     final wantSlow = _shieldHoldKey || _shieldHoldTouch;
     final wantDestroy = _destroyHoldKey || _destroyHoldTouch;
 
-    // --- Mechanic A: slow wave ---
+    final inCombat = world.children.whereType<Enemy>().isNotEmpty;
+
+    // --- Mechanic A: slow wave (usable whenever shieldCharge > 0) ---
     if (wantSlow && player.shieldCharge > 0) {
       if (!slowWaveActive) {
         slowWaveActive = true;
+        _hapticSelection();
         if (_shieldSfxCooldown <= 0) {
           unawaited(GameAudio.instance.playShieldWave());
           _shieldSfxCooldown = 0.45;
@@ -406,7 +414,6 @@ class NavesGame extends FlameGame
     } else {
       slowWaveActive = false;
       // Passive regen in combat while wave is off.
-      final inCombat = world.children.whereType<Enemy>().isNotEmpty;
       if (inCombat && player.shieldCharge < PlayerShip.shieldChargeMax) {
         player.shieldCharge = min(
           PlayerShip.shieldChargeMax,
@@ -415,10 +422,11 @@ class NavesGame extends FlameGame
       }
     }
 
-    // --- Mechanic B: destructive wave ---
+    // --- Mechanic B: destructive wave (usable whenever ammo > 0) ---
     if (wantDestroy && player.ammo > 0) {
       if (!destroyWaveActive) {
         destroyWaveActive = true;
+        _hapticSelection();
         if (_destroySfxCooldown <= 0) {
           unawaited(GameAudio.instance.playDestroyWave());
           _destroySfxCooldown = 0.35;
@@ -446,10 +454,20 @@ class NavesGame extends FlameGame
     } else {
       destroyWaveActive = false;
       _destroyAmmoAcc = 0;
+      // Passive ammo regen in combat while destroy-wave is off (clearly > shield).
+      if (inCombat && player.ammo < PlayerShip.ammoMax) {
+        _ammoRegenAcc += ammoPassiveRegen * dt;
+        final gain = _ammoRegenAcc.floor();
+        if (gain > 0) {
+          player.ammo = min(PlayerShip.ammoMax, player.ammo + gain);
+          _ammoRegenAcc -= gain;
+        }
+      }
     }
   }
 
   double _destroyAmmoAcc = 0;
+  double _ammoRegenAcc = 0;
 
   void _applyDestroyWave() {
     final origin = player.position;
@@ -531,6 +549,23 @@ class NavesGame extends FlameGame
   }
 
   void onPlayerHit() {
+    // Shield absorbs the hit while charge remains: dump charge, cancel N-wave.
+    if (_playerReady && player.isMounted && player.shieldCharge > 0) {
+      player.shieldCharge = 0;
+      slowWaveActive = false;
+      player.grantBriefInvuln(0.45);
+      _spawnExplosion(
+        player.position.clone(),
+        const Color(0xFF69F0AE),
+        intensity: 0.85,
+      );
+      _shake(0.16, 5);
+      _hapticLight();
+      unawaited(GameAudio.instance.playShieldWave());
+      _publishHud();
+      return;
+    }
+
     _lives -= 1;
     _combo = 0;
     _publishHud();
@@ -540,7 +575,7 @@ class NavesGame extends FlameGame
       intensity: 1.1,
     );
     _shake(0.28, 8);
-    _hapticHeavy();
+    _hapticLight();
 
     if (_lives <= 0) {
       _triggerGameOver();
@@ -682,6 +717,7 @@ class NavesGame extends FlameGame
     _shootPointer = null;
     _cancelWaves();
     _destroyAmmoAcc = 0;
+    _ammoRegenAcc = 0;
     if (_playerReady && player.isMounted) {
       player.keyboardDelta = Vector2.zero();
       player.joystickDelta = Vector2.zero();
@@ -729,14 +765,24 @@ class NavesGame extends FlameGame
     HapticFeedback.lightImpact();
   }
 
+  void _hapticSelection() {
+    if (kIsWeb) return;
+    HapticFeedback.selectionClick();
+  }
+
   void _hapticMedium() {
     if (kIsWeb) return;
     HapticFeedback.mediumImpact();
   }
 
-  void _hapticHeavy() {
-    if (kIsWeb) return;
-    HapticFeedback.heavyImpact();
+  /// Stop auto-fire immediately on touch/space release.
+  void _stopShooting({bool touch = false, bool keyboard = false}) {
+    if (touch) _shooting = false;
+    if (keyboard) _keyboardShooting = false;
+    if (!touch && !keyboard) {
+      _shooting = false;
+      _keyboardShooting = false;
+    }
   }
 
   static bool _isControlKey(LogicalKeyboardKey key) {
@@ -762,7 +808,13 @@ class NavesGame extends FlameGame
     final delta = Vector2(x, y);
     player.keyboardDelta =
         delta.length2 > 0 ? delta.normalized() : Vector2.zero();
-    _keyboardShooting = keysPressed.contains(LogicalKeyboardKey.space);
+    final spaceDown = keysPressed.contains(LogicalKeyboardKey.space);
+    if (spaceDown) {
+      _keyboardShooting = true;
+    } else if (_keyboardShooting) {
+      // Release space → stop shooting immediately (no trailing shot).
+      _stopShooting(keyboard: true);
+    }
 
     final nDown = keysPressed.contains(LogicalKeyboardKey.keyN);
     final mDown = keysPressed.contains(LogicalKeyboardKey.keyM);
@@ -837,7 +889,7 @@ class NavesGame extends FlameGame
     }
     if (pointerId == _shootPointer) {
       _shootPointer = null;
-      _shooting = false;
+      _stopShooting(touch: true);
     }
   }
 
@@ -851,7 +903,7 @@ class NavesGame extends FlameGame
     }
     if (pointerId == _shootPointer) {
       _shootPointer = null;
-      _shooting = false;
+      _stopShooting(touch: true);
     }
   }
 
@@ -867,13 +919,13 @@ class NavesGame extends FlameGame
 
   @override
   void onTapUp(TapUpEvent event) {
-    _shooting = false;
+    _stopShooting(touch: true);
     player.dragTarget = null;
   }
 
   @override
   void onTapCancel(TapCancelEvent event) {
-    _shooting = false;
+    _stopShooting(touch: true);
     player.dragTarget = null;
   }
 

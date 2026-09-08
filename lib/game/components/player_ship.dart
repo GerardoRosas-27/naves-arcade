@@ -105,22 +105,27 @@ class PlayerShip extends PositionComponent
     return true;
   }
 
-  /// Shield pickup → cumulative charge (no one-hit bubble).
+  /// Shield pickup → cumulative charge (aura absorbs one hit while charge > 0).
   void activateShield() {
     addShieldCharge(shieldPickupGrant);
   }
 
-  /// Weapon pickup → add stock + set type (persistent until another weapon).
+  /// Weapon pickup → fill ammo fully + set type (persistent until another weapon).
   void activateBurst() {
     burstMode = true;
     multiShot = false;
-    addAmmo(burstAmmoGrant);
+    ammo = ammoMax;
   }
 
   void activateMultiShot() {
     multiShot = true;
     burstMode = false;
-    addAmmo(multiAmmoGrant);
+    ammo = ammoMax;
+  }
+
+  /// Brief i-frames after a shielded absorb (avoids multi-hit same frame).
+  void grantBriefInvuln([double seconds = 0.45]) {
+    _invuln = max(_invuln, seconds);
   }
 
   @override
@@ -153,6 +158,34 @@ class PlayerShip extends PositionComponent
 
     final cx = size.x / 2;
     final cy = size.y / 2;
+
+    // Protective shield aura while charge remains (functional bubble).
+    if (shieldCharge > 0) {
+      final pulse = 1 + 0.06 * sin(_wavePulse);
+      final auraR = 26 * pulse;
+      canvas.drawCircle(
+        Offset(cx, cy),
+        auraR,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.2
+          ..color = const Color(0xCC69F0AE),
+      );
+      canvas.drawCircle(
+        Offset(cx, cy),
+        auraR,
+        Paint()
+          ..color = const Color(0x4469F0AE)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+      );
+      canvas.drawCircle(
+        Offset(cx, cy),
+        auraR * 0.72,
+        Paint()
+          ..color = const Color(0x2269F0AE)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+      );
+    }
 
     // Slow wave ring (mechanic A)
     if (game.slowWaveActive) {

@@ -95,9 +95,10 @@ class HudOverlay extends StatelessWidget {
             ),
           ),
           // Mobile hold buttons (right side) — fill matches charge/ammo.
+          // Right-edge ability holds — raised so thumbs clear the fire zone.
           Positioned(
             right: 12,
-            bottom: 28,
+            bottom: 112,
             child: ValueListenableBuilder<GameHudState>(
               valueListenable: game.hud,
               builder: (context, state, _) {
