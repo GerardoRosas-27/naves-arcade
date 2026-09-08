@@ -37,6 +37,10 @@ flutter build web          # build de producción web
 | Mover | Arrastra en la mitad izquierda o usa el joystick |
 | Disparar | Toca / mantén en la mitad derecha |
 | Pausar | Botón ⏸ en el HUD |
+| Mover (web) | **WASD** (A izquierda, D derecha, W arriba, S abajo) |
+| Disparar (web) | **Espacio** (mantener) |
+
+En web, teclado y arrastre/toque funcionan a la vez. El joystick táctil se mantiene en móvil.
 
 ## Estructura
 

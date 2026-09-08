@@ -6,6 +6,7 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/game_audio.dart';
@@ -61,7 +62,11 @@ class GameHudState {
 }
 
 class NavesGame extends FlameGame
-    with HasCollisionDetection, MultiTouchDragDetector, TapCallbacks {
+    with
+        HasCollisionDetection,
+        MultiTouchDragDetector,
+        TapCallbacks,
+        KeyboardEvents {
   static const double worldWidth = 400;
   static const double worldHeight = 720;
 
@@ -86,6 +91,9 @@ class NavesGame extends FlameGame
   bool isPaused = false;
   bool isGameOver = false;
   bool _shooting = false;
+  bool _keyboardShooting = false;
+  /// Called by [GamePage] to restore Focus for web keyboard input.
+  VoidCallback? requestKeyboardFocus;
   double _fireCooldown = 0;
   double _shakeTime = 0;
   double _shakeMag = 0;
@@ -174,7 +182,9 @@ class NavesGame extends FlameGame
     }
 
     _fireCooldown -= dt;
-    if (_shooting && _fireCooldown <= 0 && player.isMounted) {
+    if ((_shooting || _keyboardShooting) &&
+        _fireCooldown <= 0 &&
+        player.isMounted) {
       _fire();
     }
 
@@ -315,6 +325,7 @@ class NavesGame extends FlameGame
     isPaused = false;
     resumeEngine();
     unawaited(GameAudio.instance.resume());
+    requestKeyboardFocus?.call();
   }
 
   void restart() {
@@ -325,6 +336,10 @@ class NavesGame extends FlameGame
     _combo = 0;
     _comboTimer = 0;
     _shooting = false;
+    _keyboardShooting = false;
+    if (_playerReady && player.isMounted) {
+      player.keyboardDelta = Vector2.zero();
+    }
     _fireCooldown = 0;
     _shakeTime = 0;
     camera.viewfinder.position = _cameraRest.clone();
@@ -346,6 +361,7 @@ class NavesGame extends FlameGame
     resumeEngine();
     unawaited(GameAudio.instance.resume());
     _publishHud();
+    requestKeyboardFocus?.call();
   }
 
   void _shake(double duration, double magnitude) {
@@ -368,7 +384,46 @@ class NavesGame extends FlameGame
     HapticFeedback.heavyImpact();
   }
 
-  // --- Input ---
+
+  // --- Keyboard (web / desktop) ---
+
+  static bool _isControlKey(LogicalKeyboardKey key) {
+    return key == LogicalKeyboardKey.keyA ||
+        key == LogicalKeyboardKey.keyD ||
+        key == LogicalKeyboardKey.keyW ||
+        key == LogicalKeyboardKey.keyS ||
+        key == LogicalKeyboardKey.space;
+  }
+
+  void _applyKeyboard(Set<LogicalKeyboardKey> keysPressed) {
+    if (!_playerReady) return;
+
+    var x = 0.0;
+    var y = 0.0;
+    if (keysPressed.contains(LogicalKeyboardKey.keyA)) x -= 1;
+    if (keysPressed.contains(LogicalKeyboardKey.keyD)) x += 1;
+    if (keysPressed.contains(LogicalKeyboardKey.keyW)) y -= 1;
+    if (keysPressed.contains(LogicalKeyboardKey.keyS)) y += 1;
+
+    final delta = Vector2(x, y);
+    player.keyboardDelta =
+        delta.length2 > 0 ? delta.normalized() : Vector2.zero();
+    _keyboardShooting = keysPressed.contains(LogicalKeyboardKey.space);
+  }
+
+  @override
+  KeyEventResult onKeyEvent(
+    KeyEvent event,
+    Set<LogicalKeyboardKey> keysPressed,
+  ) {
+    _applyKeyboard(keysPressed);
+    if (_isControlKey(event.logicalKey)) {
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  // --- Touch / pointer ---
 
   int? _movePointer;
   int? _shootPointer;

@@ -15,11 +15,31 @@ class GamePage extends StatefulWidget {
 
 class _GamePageState extends State<GamePage> {
   late final NavesGame _game;
+  late final FocusNode _gameFocus;
 
   @override
   void initState() {
     super.initState();
     _game = NavesGame();
+    _gameFocus = FocusNode(debugLabel: 'naves-game');
+    _game.requestKeyboardFocus = _ensureGameFocus;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureGameFocus());
+  }
+
+  void _ensureGameFocus() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!_gameFocus.hasPrimaryFocus) {
+        _gameFocus.requestFocus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _game.requestKeyboardFocus = null;
+    _gameFocus.dispose();
+    super.dispose();
   }
 
   @override
@@ -27,6 +47,8 @@ class _GamePageState extends State<GamePage> {
     return Scaffold(
       body: GameWidget<NavesGame>(
         game: _game,
+        focusNode: _gameFocus,
+        autofocus: true,
         overlayBuilderMap: {
           HudOverlay.id: (context, game) => HudOverlay(game: game),
           PauseOverlay.id: (context, game) => PauseOverlay(game: game),

@@ -18,6 +18,7 @@ class PlayerShip extends PositionComponent
         );
 
   Vector2 joystickDelta = Vector2.zero();
+  Vector2 keyboardDelta = Vector2.zero();
   Vector2? dragTarget;
 
   bool hasShield = false;
@@ -53,6 +54,7 @@ class PlayerShip extends PositionComponent
     _multiTimer = 0;
     _invuln = 1.5;
     joystickDelta = Vector2.zero();
+    keyboardDelta = Vector2.zero();
     dragTarget = null;
   }
 
@@ -103,8 +105,10 @@ class PlayerShip extends PositionComponent
     }
 
     final speed = 280.0;
-    if (joystickDelta.length2 > 0.01) {
-      position += joystickDelta.normalized() * speed * dt;
+    // Joystick + teclado (WASD) se combinan; el arrastre solo si no hay input direccional.
+    final move = joystickDelta + keyboardDelta;
+    if (move.length2 > 0.01) {
+      position += move.normalized() * speed * dt;
     } else if (dragTarget != null) {
       final delta = dragTarget! - position;
       if (delta.length > 4) {
