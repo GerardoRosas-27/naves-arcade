@@ -14,6 +14,7 @@ Motor: **Flame** (`HasCollisionDetection`, componentes procedurales, ~60 FPS).
 - Power-ups: **ráfaga**, **escudo**, **multi-disparo**
 - Partículas / explosiones, **screen shake** y tema neón espacial
 - **Pausa**, récord con `shared_preferences`, hápticos en móvil
+- **Gameplay sincronizado** con BGM (actos, energía, patrones de fuego)
 
 ## Cómo ejecutar
 
@@ -42,6 +43,26 @@ flutter build web          # build de producción web
 
 En web, teclado y arrastre/toque funcionan a la vez. El joystick táctil se mantiene en móvil.
 
+
+## Sincronía con la banda sonora
+
+El gameplay sigue la BGM (`bgm_01`–`bgm_04`) por **actos** y ritmo.
+
+**Enfoque:** pre-análisis offline (RMS + BPM/beats con ffmpeg/python) → JSON en `assets/audio/analysis/`. En runtime, `MusicDirector` lee el índice de pista y la posición de `AudioPlayer` (sin FFT en vivo; más fiable en Flutter web).
+
+| Acto | Pista | Sensación |
+|------|-------|-----------|
+| 1 | `bgm_01` | Apertura: energía media, disparos enemigos en abanico/recto; densifica en picos |
+| 2 | `bgm_02` | Pulso corto y agresivo: scouts rápidos, espirales en beats fuertes |
+| 3 | `bgm_03` | Contraste: tramos lentos disparan al beat; estallidos densos |
+| 4 | `bgm_04` | Clímax largo: más tanques, abanico/espiral, spawn alto en crestas |
+
+Al terminar una pista: pausa breve de spawn, limpieza parcial de enemigos y “juice”; al empezar la siguiente, nuevo acto (spawn, patrones, velocidad).
+
+Patrones de fuego enemigo: `straight`, `fan`, `spiral` (paramétrico). Controles WASD+espacio, táctiles y SFX se mantienen.
+
+Re-generar análisis (opcional): `python3 tool/analyze_bgm.py`
+
 ## Estructura
 
 ```
@@ -49,6 +70,7 @@ lib/
   main.dart
   ui/          # pantallas y overlays (bienvenida, HUD, pausa, game over)
   game/        # Flame: NavesGame, componentes y spawn
+  audio/       # GameAudio, MusicDirector, análisis BGM
 ```
 
 ## Requisitos

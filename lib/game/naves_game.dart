@@ -10,10 +10,12 @@ import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../audio/game_audio.dart';
+import '../audio/music_director.dart';
 import '../ui/game_over_overlay.dart';
 import '../ui/hud_overlay.dart';
 import 'components/bullet.dart';
 import 'components/enemy.dart';
+import 'components/enemy_bullet.dart';
 import 'components/explosion.dart';
 import 'components/player_ship.dart';
 import 'components/power_up.dart';
@@ -87,6 +89,7 @@ class NavesGame extends FlameGame
   late VirtualJoystick joystick;
   late SpawnManager spawnManager;
   late Starfield starfield;
+  final musicDirector = MusicDirector.instance;
 
   bool isPaused = false;
   bool isGameOver = false;
@@ -115,6 +118,10 @@ class NavesGame extends FlameGame
 
     camera.viewfinder.anchor = Anchor.topLeft;
     _cameraRest = Vector2.zero();
+
+    await musicDirector.ensureLoaded();
+    musicDirector.beginAct(GameAudio.instance.trackIndex);
+    GameAudio.instance.onSectionBoundary = _onSectionBoundary;
 
     starfield = Starfield();
     world.add(starfield);
@@ -171,6 +178,8 @@ class NavesGame extends FlameGame
   @override
   void update(double dt) {
     if (isPaused || isGameOver) return;
+    musicDirector.update();
+    starfield.scrollScale = musicDirector.cue.scrollScale;
     super.update(dt);
 
     if (_combo > 0) {
@@ -315,6 +324,39 @@ class NavesGame extends FlameGame
     _hapticMedium();
   }
 
+
+  /// End of a BGM track = end of section (juice + brief spawn pause), then next act.
+  Future<void> _onSectionBoundary(int completedIndex, int nextIndex) async {
+    if (isGameOver) return;
+    musicDirector.beginSectionEnd();
+    spawnManager.pausedForSection = true;
+
+    final enemies = world.children.whereType<Enemy>().toList();
+    // Partial clear: destroy about half for a "breath" between acts.
+    for (var i = 0; i < enemies.length; i++) {
+      if (i.isOdd) continue;
+      final e = enemies[i];
+      if (!e.isMounted) continue;
+      world.add(
+        Explosion(
+          position: e.position.clone(),
+          color: e.neonColor,
+          intensity: 0.85,
+        ),
+      );
+      e.removeFromParent();
+    }
+    // Sweep leftover enemy bullets for a clean act start.
+    world.removeAll(world.children.whereType<EnemyBullet>());
+    _shake(0.35, 7);
+
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    if (isGameOver) return;
+
+    spawnManager.pausedForSection = false;
+    musicDirector.beginAct(nextIndex);
+  }
+
   void pauseGame() {
     isPaused = true;
     pauseEngine();
@@ -346,7 +388,12 @@ class NavesGame extends FlameGame
 
     world.removeAll(
       world.children.where(
-        (c) => c is Enemy || c is Bullet || c is PowerUp || c is Explosion,
+        (c) =>
+            c is Enemy ||
+            c is Bullet ||
+            c is EnemyBullet ||
+            c is PowerUp ||
+            c is Explosion,
       ),
     );
 
@@ -354,6 +401,7 @@ class NavesGame extends FlameGame
       player.resetState();
     }
     spawnManager.reset();
+    musicDirector.beginAct(GameAudio.instance.trackIndex);
     overlays.remove(GameOverOverlay.id);
     if (!overlays.isActive(HudOverlay.id)) {
       overlays.add(HudOverlay.id);

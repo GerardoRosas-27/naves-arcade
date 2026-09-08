@@ -6,6 +6,7 @@ import 'package:flutter/painting.dart';
 
 import '../naves_game.dart';
 import 'enemy.dart';
+import 'enemy_bullet.dart';
 import 'power_up.dart';
 
 class PlayerShip extends PositionComponent
@@ -205,6 +206,9 @@ class PlayerShip extends PositionComponent
     if (_invuln > 0) return;
 
     if (other is Enemy) {
+      other.removeFromParent();
+      game.onPlayerHit();
+    } else if (other is EnemyBullet) {
       other.removeFromParent();
       game.onPlayerHit();
     } else if (other is PowerUp) {

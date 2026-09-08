@@ -18,6 +18,7 @@ class _Star {
 class Starfield extends Component with HasGameReference<NavesGame> {
   final _rng = Random();
   final _stars = <_Star>[];
+  double scrollScale = 1.0;
 
   @override
   Future<void> onLoad() async {
@@ -41,7 +42,7 @@ class Starfield extends Component with HasGameReference<NavesGame> {
     final h = game.playArea.y;
     final w = game.playArea.x;
     for (final s in _stars) {
-      s.y += s.speed * dt;
+      s.y += s.speed * scrollScale * dt;
       if (s.y > h) {
         s.y = -2;
         s.x = _rng.nextDouble() * w;
