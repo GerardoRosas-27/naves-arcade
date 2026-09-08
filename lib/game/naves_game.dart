@@ -97,10 +97,11 @@ class NavesGame extends FlameGame
 
   static const _highScoreKey = 'high_score';
 
+  bool _playerReady = false;
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    await _loadHighScore();
 
     camera.viewfinder.anchor = Anchor.topLeft;
     _cameraRest = Vector2.zero();
@@ -110,6 +111,7 @@ class NavesGame extends FlameGame
 
     player = PlayerShip();
     world.add(player);
+    _playerReady = true;
 
     joystick = VirtualJoystick();
     camera.viewport.add(joystick);
@@ -117,6 +119,8 @@ class NavesGame extends FlameGame
     spawnManager = SpawnManager();
     world.add(spawnManager);
 
+    // High score after player exists: _publishHud reads player.hasShield.
+    await _loadHighScore();
     _publishHud();
   }
 
@@ -142,7 +146,7 @@ class NavesGame extends FlameGame
       combo: _combo,
       multiplier: mult,
       highScore: max(_highScore, _score),
-      hasShield: player.isMounted && player.hasShield,
+      hasShield: _playerReady && player.isMounted && player.hasShield,
     );
   }
 

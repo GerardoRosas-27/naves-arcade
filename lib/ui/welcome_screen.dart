@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,7 +40,9 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   }
 
   void _startGame() {
-    HapticFeedback.mediumImpact();
+    if (!kIsWeb) {
+      HapticFeedback.mediumImpact();
+    }
     Navigator.of(context)
         .push(
           MaterialPageRoute(builder: (_) => const GamePage()),
