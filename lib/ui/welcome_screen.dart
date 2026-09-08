@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../audio/game_audio.dart';
+import '../config/download_urls.dart';
 import 'game_page.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -52,6 +54,64 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
     await GameAudio.instance.stop();
     if (mounted) await _loadHighScore();
+  }
+
+  Future<void> _downloadAndroid() async {
+    final uri = Uri.parse(DownloadUrls.androidApkUrl);
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo abrir la descarga. Revisa Releases en GitHub.',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _downloadIos() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1A3A),
+        title: const Text(
+          'Descarga iOS',
+          style: TextStyle(color: Color(0xFFE8F7FF)),
+        ),
+        content: const Text(
+          'iOS requiere App Store, TestFlight o un IPA firmado '
+          'generado en un Mac con Xcode. Este entorno no puede '
+          'producir un IPA instalable.\n\n'
+          'Puedes abrir la página de Releases o el README para '
+          'seguir el estado de builds móviles.',
+          style: TextStyle(color: Color(0xFFB0C4DE)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cerrar'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final uri = Uri.parse(DownloadUrls.releasesPageUrl);
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+            child: const Text('Ver Releases'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final uri = Uri.parse(DownloadUrls.iosInfoUrl);
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            },
+            child: const Text('Ver README'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -190,6 +250,62 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: _downloadAndroid,
+                          icon: const Icon(Icons.android, size: 20),
+                          label: const Text(
+                            'Descargar Android',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFA5D6A7),
+                            side: BorderSide(
+                              color: const Color(0xFF66BB6A).withValues(alpha: 0.7),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: _downloadIos,
+                          icon: const Icon(Icons.apple, size: 20),
+                          label: const Text(
+                            'Descargar iOS',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFB0BEC5),
+                            side: BorderSide(
+                              color: Colors.white.withValues(alpha: 0.35),
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 Text(
