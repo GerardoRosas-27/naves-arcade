@@ -55,3 +55,16 @@ lib/
 ## Licencia
 
 Demo educativa. Sin secretos ni backends.
+
+## Desplegar en Railway (web)
+
+Despliegue **solo web** con Docker. Las carpetas `android/`, `ios/` y escritorio se mantienen en el repo; no se usan en el build de Railway.
+
+1. Entra a [Railway](https://railway.app) → **New Project** → **Deploy from GitHub repo**.
+2. Autoriza GitHub si hace falta y selecciona **`GerardoRosas-27/naves-arcade`**.
+3. Railway detecta el `Dockerfile` (o `railway.toml`) y construye Flutter web + sirve estáticos.
+4. Cuando termine el deploy, abre la URL pública del servicio (dominio `*.up.railway.app` o el que configures).
+
+**Base href:** en Railway se usa `--base-href /` (raíz del dominio). Si publicas en GitHub Pages bajo `/naves-arcade/`, usa `--base-href /naves-arcade/` en ese flujo; no mezclar ambos builds.
+
+Variables: Railway inyecta `PORT`; el contenedor ya escucha en `$PORT`. No hace falta configurar puerto a mano.
